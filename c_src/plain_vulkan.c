@@ -3,15 +3,17 @@
 
 #define APPNAME_MAX_LENGTH 128
 
-#define ATOM(Value) enif_make_atom(env, Value)
-#define ATOM_OK     ATOM("ok")
-#define ATOM_ERROR  ATOM("error")
+#define ATOM(Value)     enif_make_atom(env, Value)
+#define ATOM_OK         ATOM("ok")
+#define ATOM_ERROR      ATOM("error")
+#define ATOM_NIF_ERROR  ATOM("nif_error")
+#define ATOM_UNDEFINED  ATOM("undefined")
 
 #define ATOM_OUT_OF_HOST_MEM        ATOM("out_of_host_memory")
-#define ATOM_OUT_OF_DEVICE_MEM      ATOM("out_of_host_memory")
+#define ATOM_OUT_OF_DEVICE_MEM      ATOM("out_of_device_memory")
 #define ATOM_INIT_FAILED            ATOM("init_failed")
 
-#define TUPLE_OK(Value)    enif_make_tuple(env, 2, ATOM_OK, Value)
+#define TUPLE_OK(Value)     enif_make_tuple(env, 2, ATOM_OK, Value)
 #define TUPLE_ERROR(Value)  enif_make_tuple(env, 2, ATOM_ERROR, Value)
 
 #define load_instance(Value) if (enif_get_resource(env, argv[0], vk_resources[VK_INSTANCE].resource_type, (void **)&Value) == 0) return enif_make_badarg(env);
@@ -133,7 +135,7 @@ ENIF(count_physical_devices_nif) {
         case VK_ERROR_INITIALIZATION_FAILED:
             return TUPLE_ERROR(ATOM_INIT_FAILED);
     }
-    return ATOM_ERROR;
+    return ATOM_NIF_ERROR;
 }
 
 ENIF(enumerate_physical_devices_nif) {
@@ -169,13 +171,43 @@ ENIF(enumerate_physical_devices_nif) {
         case VK_ERROR_INITIALIZATION_FAILED:
             return TUPLE_ERROR(ATOM_INIT_FAILED);
     }
+    return ATOM_NIF_ERROR;
+}
+
+ENIF(get_physical_device_properties_nif) {
+    VkPhysicalDevice *device = NULL;
+    VkPhysicalDeviceProperties properties = {0};
+    ErlNifBinary uuid = {0};
+
+    if (enif_get_resource(env, argv[0], vk_resources[VK_PHYS_DEV].resource_type, (void **)&device) == 0)
+        return enif_make_badarg(env);
+
+    vkGetPhysicalDeviceProperties(*device, &properties);
+
+    if (enif_alloc_binary(VK_UUID_SIZE, &uuid) == 0)
+        return ATOM_OUT_OF_HOST_MEM;
+
+    return enif_make_tuple(env
+                          ,10
+                          ,ATOM("vk_physical_device_properties")
+                          ,enif_make_int(env, properties.apiVersion)
+                          ,enif_make_int(env, properties.driverVersion)
+                          ,enif_make_int(env, properties.vendorID)
+                          ,enif_make_int(env, properties.deviceID)
+                          ,enif_make_int(env, properties.deviceType)
+                          ,enif_make_string(env, properties.deviceName, ERL_NIF_LATIN1)
+                          ,enif_make_binary(env, &uuid)
+                          ,ATOM_UNDEFINED
+                          ,ATOM_UNDEFINED
+                          );
 }
 
 static ErlNifFunc nif_funcs[] = {
   {"create_instance", 1, create_instance_nif},
   {"destroy_instance", 1, destroy_instance_nif},
   {"count_physical_devices", 1, count_physical_devices_nif},
-  {"enumerate_physical_devices", 2, enumerate_physical_devices_nif}
+  {"enumerate_physical_devices", 2, enumerate_physical_devices_nif},
+  {"get_physical_device_properties", 1, get_physical_device_properties_nif}
 };
 
 ERL_NIF_INIT(plain_vulkan, nif_funcs, &load, NULL, &upgrade, NULL);
