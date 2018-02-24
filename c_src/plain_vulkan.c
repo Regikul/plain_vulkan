@@ -10,8 +10,11 @@
 
 #define load_instance(Value) if (enif_get_resource(env, argv[0], vk_resources[VK_INSTANCE].resource_type, (void **)&Value) == 0) return enif_make_badarg(env);
 
+#define ENIF(name) static ERL_NIF_TERM name(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+
 typedef enum {
     VK_INSTANCE,
+    VK_PHYS_DEV,
     VK_RESOURCE_COUNT
 } vk_resource_enumeration;
 
@@ -22,7 +25,8 @@ typedef struct {
 } vk_resource_definition;
 
 vk_resource_definition vk_resources[] = {
-    {"VK_INSTANCE", NULL, NULL}
+    {"VK_INSTANCE", NULL, NULL},
+    {"VK_PHYS_DEV", NULL, NULL}
 };
 
 static int open_resources(ErlNifEnv* env) {
@@ -41,11 +45,7 @@ static int open_resources(ErlNifEnv* env) {
     return 0;
 }
 
-static ERL_NIF_TERM hello_world_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
-  return enif_make_atom(env, "hello_world");
-}
-
-static ERL_NIF_TERM create_instance_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+ENIF(create_instance_nif) {
     unsigned app_name_length = 0;
     VkInstance *instance;
 
@@ -89,6 +89,15 @@ static ERL_NIF_TERM create_instance_nif(ErlNifEnv* env, int argc, const ERL_NIF_
     }
 }
 
+ENIF(destroy_instance_nif) {
+    VkInstance *instance;
+
+    load_instance(instance);
+
+    vkDestroyInstance(*instance, NULL);
+    return ATOM_OK;
+}
+
 static int load(ErlNifEnv* env, void** priv, ERL_NIF_TERM load_info)
 {
     return open_resources(env);
@@ -99,7 +108,7 @@ static int upgrade(ErlNifEnv* env, void** priv, void** old_priv, ERL_NIF_TERM lo
     return open_resources(env);
 }
 
-static ERL_NIF_TERM enum_phy_devs_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+ENIF(enum_phy_devs_nif) {
     uint32_t count = 0;
     VkInstance *instance;
     ERL_NIF_TERM ret;
@@ -123,24 +132,28 @@ static ERL_NIF_TERM enum_phy_devs_nif(ErlNifEnv* env, int argc, const ERL_NIF_TE
     return ATOM_ERROR;
 }
 
-static ERL_NIF_TERM load_phy_devs_nif(ErlNIfEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+ENIF(load_phy_devs_nif) {
     VkInstance *instance;
     uint32_t count = 0;
-    VkPhysicalDevice* devs;
-
-    load_instance(instance);
-    enif_get_ulong(env, argv[1], &count);
-
-
-}
-
-static ERL_NIF_TERM destroy_instance_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
-    VkInstance *instance;
+    enif_get_ulong(env, argv[1], (unsigned long*)&count);
+    VkPhysicalDevice devs[count];
+    ERL_NIF_TERM res[count];
+    VkPhysicalDevice *allocated;
+    int i = 0;
 
     load_instance(instance);
 
-    vkDestroyInstance(*instance, NULL);
-    return ATOM_OK;
+    vkEnumeratePhysicalDevices(*instance, &count, devs);
+
+    for (; count; count--) {
+        allocated  = (VkPhysicalDevice*) enif_alloc_resource(vk_resources[VK_PHYS_DEV].resource_type, sizeof(VkPhysicalDevice));
+        *allocated = devs[count - 1];
+        res[count - 1] = enif_make_resource(env, allocated);
+        enif_release_resource(res[count - 1]);
+    }
+
+    ERL_NIF_TERM ret = enif_make_list_from_array(env, res, count);
+    return TUPLE_OK(ret);
 }
 
 static ErlNifFunc nif_funcs[] = {
