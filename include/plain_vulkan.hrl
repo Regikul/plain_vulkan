@@ -3,6 +3,7 @@
 
 
 -define(WORKER(Name), #{'id'=>Name, 'start'=>{Name, 'start_link', []}, 'shutdown'=>2000, 'type'=>'worker', 'modules'=>[Name]}).
+-define(WORKER(Name, Args), #{'id'=>Name, 'start'=>{Name, 'start_link', [Args]}, 'shutdown'=>2000, 'type'=>'worker', 'modules'=>[Name]}).
 -define(SUPER(Name), #{'id'=>Name, 'start'=>{Name, 'start_link', []}, 'shutdown'=>'infinity', 'type'=>'supervisor', 'modules'=>[Name]}).
 
 -type terminate_reason() :: 'normal' | 'shutdown' | {'shutdown', term()} | term().

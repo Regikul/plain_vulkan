@@ -1,30 +1,18 @@
--module(plain_vulkan_sup).
+-module(pvk_devices_sup).
 
 -behaviour(supervisor).
 
 %% API
--export([start_link/0
-        ,new_instance/1
-        ]).
+-export([start_link/0]).
 
 %% Supervisor callbacks
 -export([init/1]).
 
 -define(SERVER, ?MODULE).
 
--include("plain_vulkan.hrl").
-
 %%%===================================================================
 %%% API functions
 %%%===================================================================
-
--spec new_instance(string()) -> supervisor:startchild_ret().
-new_instance(AppName) ->
-    SupName = list_to_atom(AppName),
-    case whereis(SupName) of
-        'undefined' -> supervisor:start_child(?SERVER, [AppName]);
-        Pid -> {'error', {'already_started', Pid}}
-    end.
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -52,15 +40,13 @@ start_link() ->
 %%--------------------------------------------------------------------
 -spec init(term()) -> {ok, supervisor:child_spec()}.
 init([]) ->
-    RestartStrategy = simple_one_for_one,
+    RestartStrategy = one_for_one,
     MaxRestarts = 1000,
     MaxSecondsBetweenRestarts = 3600,
 
     SupFlags = {RestartStrategy, MaxRestarts, MaxSecondsBetweenRestarts},
 
-    Children = [?SUPER(pvk_instance_sup)],
-
-    {ok, {SupFlags, Children}}.
+    {ok, {SupFlags, []}}.
 
 %%%===================================================================
 %%% Internal functions
