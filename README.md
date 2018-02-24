@@ -1,3 +1,4 @@
+[![CircleCI](https://circleci.com/gh/Regikul/plain_vulkan.svg?style=svg)](https://circleci.com/gh/Regikul/plain_vulkan)
 plain_vulkan
 =====
 
