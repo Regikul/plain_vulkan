@@ -8,6 +8,8 @@
 #define TUPLE_OK(Value)    enif_make_tuple(env, 2, ATOM_OK, Value)
 #define TUPLE_ERROR(Value)  enif_make_tuple(env, 2, ATOM_ERROR, Value)
 
+#define load_instance(Value) if (enif_get_resource(env, argv[0], vk_resources[VK_INSTANCE].resource_type, (void **)&Value) == 0) return enif_make_badarg(env);
+
 typedef enum {
     VK_INSTANCE,
     VK_RESOURCE_COUNT
@@ -99,13 +101,10 @@ static int upgrade(ErlNifEnv* env, void** priv, void** old_priv, ERL_NIF_TERM lo
 
 static ERL_NIF_TERM enum_phy_devs_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
     uint32_t count = 0;
-
     VkInstance *instance;
-
-    if (enif_get_resource(env, argv[0], vk_resources[VK_INSTANCE].resource_type, (void **)&instance) == 0)
-        return enif_make_badarg(env);
-
     ERL_NIF_TERM ret;
+
+    load_instance(instance);
 
     switch(vkEnumeratePhysicalDevices(*instance, &count, NULL)) {
         case VK_SUCCESS:
@@ -124,21 +123,31 @@ static ERL_NIF_TERM enum_phy_devs_nif(ErlNifEnv* env, int argc, const ERL_NIF_TE
     return ATOM_ERROR;
 }
 
+static ERL_NIF_TERM load_phy_devs_nif(ErlNIfEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    VkInstance *instance;
+    uint32_t count = 0;
+    VkPhysicalDevice* devs;
+
+    load_instance(instance);
+    enif_get_ulong(env, argv[1], &count);
+
+
+}
+
 static ERL_NIF_TERM destroy_instance_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
     VkInstance *instance;
 
-    if (enif_get_resource(env, argv[0], vk_resources[VK_INSTANCE].resource_type, (void **)&instance) == 0)
-        return enif_make_badarg(env);
+    load_instance(instance);
 
     vkDestroyInstance(*instance, NULL);
     return ATOM_OK;
 }
 
 static ErlNifFunc nif_funcs[] = {
-  {"hello_world", 0, hello_world_nif},
   {"create_instance", 1, create_instance_nif},
+  {"destroy_instance", 1, destroy_instance_nif},
   {"enum_phy_devs", 1, enum_phy_devs_nif},
-  {"destroy_instance", 1, destroy_instance_nif}
+  {"load_phy_devs", 2, load_phy_devs_nif}
 };
 
 ERL_NIF_INIT(plain_vulkan, nif_funcs, &load, NULL, &upgrade, NULL);
