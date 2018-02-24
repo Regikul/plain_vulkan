@@ -3,12 +3,25 @@
 
 #define APPNAME_MAX_LENGTH 128
 
-#define ATOM_OK     enif_make_atom(env, "ok")
-#define ATOM_ERROR  enif_make_atom(env, "error")
+#define ATOM(Value) enif_make_atom(env, Value)
+#define ATOM_OK     ATOM("ok")
+#define ATOM_ERROR  ATOM("error")
+
+#define ATOM_OUT_OF_HOST_MEM        ATOM("out_of_host_memory")
+#define ATOM_OUT_OF_DEVICE_MEM      ATOM("out_of_host_memory")
+#define ATOM_INIT_FAILED            ATOM("init_failed")
+
 #define TUPLE_OK(Value)    enif_make_tuple(env, 2, ATOM_OK, Value)
+#define TUPLE_ERROR(Value)  enif_make_tuple(env, 2, ATOM_ERROR, Value)
+
+#define load_instance(Value) if (enif_get_resource(env, argv[0], vk_resources[VK_INSTANCE].resource_type, (void **)&Value) == 0) return enif_make_badarg(env);
+
+#define ENIF(name) static ERL_NIF_TERM name(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 
 typedef enum {
     VK_INSTANCE,
+    VK_PHYS_DEV,
+
     VK_RESOURCE_COUNT
 } vk_resource_enumeration;
 
@@ -19,7 +32,8 @@ typedef struct {
 } vk_resource_definition;
 
 vk_resource_definition vk_resources[] = {
-    {"VK_INSTANCE", NULL, NULL}
+    {"VK_INSTANCE", NULL, NULL},
+    {"VK_PHYS_DEV", NULL, NULL}
 };
 
 static int open_resources(ErlNifEnv* env) {
@@ -38,11 +52,7 @@ static int open_resources(ErlNifEnv* env) {
     return 0;
 }
 
-static ERL_NIF_TERM hello_world_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
-  return enif_make_atom(env, "hello_world");
-}
-
-static ERL_NIF_TERM create_instance_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+ENIF(create_instance_nif) {
     unsigned app_name_length = 0;
     VkInstance *instance;
 
@@ -86,6 +96,15 @@ static ERL_NIF_TERM create_instance_nif(ErlNifEnv* env, int argc, const ERL_NIF_
     }
 }
 
+ENIF(destroy_instance_nif) {
+    VkInstance *instance;
+
+    load_instance(instance);
+
+    vkDestroyInstance(*instance, NULL);
+    return ATOM_OK;
+}
+
 static int load(ErlNifEnv* env, void** priv, ERL_NIF_TERM load_info)
 {
     return open_resources(env);
@@ -96,36 +115,67 @@ static int upgrade(ErlNifEnv* env, void** priv, void** old_priv, ERL_NIF_TERM lo
     return open_resources(env);
 }
 
-static ERL_NIF_TERM enum_phy_devs_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+ENIF(enum_phy_devs_nif) {
     uint32_t count = 0;
-
     VkInstance *instance;
+    ERL_NIF_TERM ret;
 
-    if (enif_get_resource(env, argv[0], vk_resources[VK_INSTANCE].resource_type, (void **)instance) == 0)
-        return enif_make_badarg(env);
+    load_instance(instance);
 
-    if (1 || vkEnumeratePhysicalDevices(*instance, &count, NULL) == VK_SUCCESS) {
-      ERL_NIF_TERM countTerm = enif_make_int(env, count);
-      return TUPLE_OK(countTerm);
-    } else {
-      return ATOM_ERROR;
+    switch(vkEnumeratePhysicalDevices(*instance, &count, NULL)) {
+        case VK_SUCCESS:
+            ret = enif_make_ulong(env, count);
+            return TUPLE_OK(ret);
+        case VK_ERROR_OUT_OF_HOST_MEMORY:
+            return TUPLE_ERROR(ATOM_OUT_OF_HOST_MEM);
+        case VK_ERROR_OUT_OF_DEVICE_MEMORY:
+            return TUPLE_ERROR(ATOM_OUT_OF_DEVICE_MEM);
+        case VK_ERROR_INITIALIZATION_FAILED:
+            return TUPLE_ERROR(ATOM_INIT_FAILED);
+    }
+    return ATOM_ERROR;
+}
+
+ENIF(load_phy_devs_nif) {
+    VkInstance *instance;
+    uint32_t count = 0;
+    enif_get_ulong(env, argv[1], (unsigned long*)&count);
+    VkPhysicalDevice devs[count];
+    ERL_NIF_TERM res[count];
+    VkPhysicalDevice *allocated;
+    int i = 0;
+
+    load_instance(instance);
+    VkResult result;
+
+    switch (result = vkEnumeratePhysicalDevices(*instance, &count, devs)) {
+        case VK_SUCCESS:
+        case VK_INCOMPLETE:
+            for (; i < count; i++) {
+                allocated  = (VkPhysicalDevice*) enif_alloc_resource(vk_resources[VK_PHYS_DEV].resource_type, sizeof(VkPhysicalDevice));
+                *allocated = devs[i];
+                res[i] = enif_make_resource(env, allocated);
+                enif_release_resource(res[i]);
+            }
+            ERL_NIF_TERM ret = enif_make_list_from_array(env, res, count);
+            if (result == VK_SUCCESS)
+                return TUPLE_OK(ret);
+            else
+                return enif_make_tuple(env, 2, ATOM("incomplete"), ret);
+        case VK_ERROR_OUT_OF_HOST_MEMORY:
+            return TUPLE_ERROR(ATOM_OUT_OF_HOST_MEM);
+        case VK_ERROR_OUT_OF_DEVICE_MEMORY:
+            return TUPLE_ERROR(ATOM_OUT_OF_DEVICE_MEM);
+        case VK_ERROR_INITIALIZATION_FAILED:
+            return TUPLE_ERROR(ATOM_INIT_FAILED);
     }
 }
 
-static ERL_NIF_TERM destroy_instance_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
-    VkInstance *instance;
-    if (enif_get_resource(env, argv[0], vk_resources[VK_INSTANCE].resource_type, (void **)&instance) == 0)
-        return enif_make_badarg(env);
-
-    vkDestroyInstance(*instance, NULL);
-    return ATOM_OK;
-}
-
 static ErlNifFunc nif_funcs[] = {
-  {"hello_world", 0, hello_world_nif},
   {"create_instance", 1, create_instance_nif},
+  {"destroy_instance", 1, destroy_instance_nif},
   {"enum_phy_devs", 1, enum_phy_devs_nif},
-  {"destroy_instance", 1, destroy_instance_nif}
+  {"load_phy_devs", 2, load_phy_devs_nif}
 };
 
 ERL_NIF_INIT(plain_vulkan, nif_funcs, &load, NULL, &upgrade, NULL);

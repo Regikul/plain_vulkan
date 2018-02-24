@@ -4,18 +4,15 @@
 
 %% API exports
 -export([
-  hello_world/0,
   create_instance/1,
   destroy_instance/1,
-  enum_phy_devs/1
+  enum_phy_devs/1,
+  load_phy_devs/2
 ]).
 
 %%====================================================================
 %% API functions
 %%====================================================================
-
--spec hello_world() -> atom().
-hello_world() -> erlang:nif_error({error, not_loaded}).
 
 -spec create_instance(string()) -> {ok, term()} | error.
 create_instance(_) -> erlang:nif_error({error, not_loaded}).
@@ -25,6 +22,9 @@ destroy_instance(_) -> erlang:nif_error({error, not_loaded}).
 
 -spec enum_phy_devs(any()) -> any().
 enum_phy_devs(_) -> erlang:nif_error({error, not_loaded}).
+
+-spec load_phy_devs(any(), any()) -> any().
+load_phy_devs(_Instance, _Count) -> erlang:nif_error({error, not_loaded}).
 
 %%====================================================================
 %% Internal functions
