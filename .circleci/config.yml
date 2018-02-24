@@ -5,9 +5,9 @@ jobs:
       - image: library/erlang:20.2.4
     steps:
       - checkout
-      - run
+      - run:
         name: vulkan api
         command: sudo apt-get update && sudo apt-get instal libvulkan-dev
-      - run
+      - run:
         name: compile
         command: rebar3 compile
