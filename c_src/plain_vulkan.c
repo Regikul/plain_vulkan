@@ -3,8 +3,14 @@
 
 #define APPNAME_MAX_LENGTH 128
 
-#define ATOM_OK     enif_make_atom(env, "ok")
-#define ATOM_ERROR  enif_make_atom(env, "error")
+#define ATOM(Value) enif_make_atom(env, Value)
+#define ATOM_OK     ATOM("ok")
+#define ATOM_ERROR  ATOM("error")
+
+#define ATOM_OUT_OF_HOST_MEM        ATOM("out_of_host_memory")
+#define ATOM_OUT_OF_DEVICE_MEM      ATOM("out_of_host_memory")
+#define ATOM_INIT_FAILED            ATOM("init_failed")
+
 #define TUPLE_OK(Value)    enif_make_tuple(env, 2, ATOM_OK, Value)
 #define TUPLE_ERROR(Value)  enif_make_tuple(env, 2, ATOM_ERROR, Value)
 
@@ -15,6 +21,7 @@
 typedef enum {
     VK_INSTANCE,
     VK_PHYS_DEV,
+
     VK_RESOURCE_COUNT
 } vk_resource_enumeration;
 
@@ -120,14 +127,11 @@ ENIF(enum_phy_devs_nif) {
             ret = enif_make_ulong(env, count);
             return TUPLE_OK(ret);
         case VK_ERROR_OUT_OF_HOST_MEMORY:
-            ret = enif_make_atom(env, "out_of_host_memory");
-            return TUPLE_ERROR(ret);
+            return TUPLE_ERROR(ATOM_OUT_OF_HOST_MEM);
         case VK_ERROR_OUT_OF_DEVICE_MEMORY:
-            ret = enif_make_atom(env, "out_of_host_memory");
-            return TUPLE_ERROR(ret);
+            return TUPLE_ERROR(ATOM_OUT_OF_DEVICE_MEM);
         case VK_ERROR_INITIALIZATION_FAILED:
-            ret = enif_make_atom(env, "init_failed");
-            return TUPLE_ERROR(ret);
+            return TUPLE_ERROR(ATOM_INIT_FAILED);
     }
     return ATOM_ERROR;
 }
@@ -142,18 +146,29 @@ ENIF(load_phy_devs_nif) {
     int i = 0;
 
     load_instance(instance);
+    VkResult result;
 
-    vkEnumeratePhysicalDevices(*instance, &count, devs);
-
-    for (; count; count--) {
-        allocated  = (VkPhysicalDevice*) enif_alloc_resource(vk_resources[VK_PHYS_DEV].resource_type, sizeof(VkPhysicalDevice));
-        *allocated = devs[count - 1];
-        res[count - 1] = enif_make_resource(env, allocated);
-        enif_release_resource(res[count - 1]);
+    switch (result = vkEnumeratePhysicalDevices(*instance, &count, devs)) {
+        case VK_SUCCESS:
+        case VK_INCOMPLETE:
+            for (; i < count; i++) {
+                allocated  = (VkPhysicalDevice*) enif_alloc_resource(vk_resources[VK_PHYS_DEV].resource_type, sizeof(VkPhysicalDevice));
+                *allocated = devs[i];
+                res[i] = enif_make_resource(env, allocated);
+                enif_release_resource(res[i]);
+            }
+            ERL_NIF_TERM ret = enif_make_list_from_array(env, res, count);
+            if (result == VK_SUCCESS)
+                return TUPLE_OK(ret);
+            else
+                return enif_make_tuple(env, 2, ATOM("incomplete"), ret);
+        case VK_ERROR_OUT_OF_HOST_MEMORY:
+            return TUPLE_ERROR(ATOM_OUT_OF_HOST_MEM);
+        case VK_ERROR_OUT_OF_DEVICE_MEMORY:
+            return TUPLE_ERROR(ATOM_OUT_OF_DEVICE_MEM);
+        case VK_ERROR_INITIALIZATION_FAILED:
+            return TUPLE_ERROR(ATOM_INIT_FAILED);
     }
-
-    ERL_NIF_TERM ret = enif_make_list_from_array(env, res, count);
-    return TUPLE_OK(ret);
 }
 
 static ErlNifFunc nif_funcs[] = {
