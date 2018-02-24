@@ -6,8 +6,8 @@
 -export([
   create_instance/1,
   destroy_instance/1,
-  enum_phy_devs/1,
-  load_phy_devs/2
+  count_physical_devices/1,
+  enumerate_physical_devices/2
 ]).
 
 %%====================================================================
@@ -20,11 +20,11 @@ create_instance(_) -> erlang:nif_error({error, not_loaded}).
 -spec destroy_instance(any()) -> ok.
 destroy_instance(_) -> erlang:nif_error({error, not_loaded}).
 
--spec enum_phy_devs(any()) -> any().
-enum_phy_devs(_) -> erlang:nif_error({error, not_loaded}).
+-spec count_physical_devices(any()) -> any().
+count_physical_devices(_) -> erlang:nif_error({error, not_loaded}).
 
--spec load_phy_devs(any(), any()) -> any().
-load_phy_devs(_Instance, _Count) -> erlang:nif_error({error, not_loaded}).
+-spec enumerate_physical_devices(any(), any()) -> any().
+enumerate_physical_devices(_Instance, _Count) -> erlang:nif_error({error, not_loaded}).
 
 %%====================================================================
 %% Internal functions

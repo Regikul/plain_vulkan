@@ -115,7 +115,7 @@ static int upgrade(ErlNifEnv* env, void** priv, void** old_priv, ERL_NIF_TERM lo
     return open_resources(env);
 }
 
-ENIF(enum_phy_devs_nif) {
+ENIF(count_physical_devices_nif) {
     uint32_t count = 0;
     VkInstance *instance;
     ERL_NIF_TERM ret;
@@ -136,7 +136,7 @@ ENIF(enum_phy_devs_nif) {
     return ATOM_ERROR;
 }
 
-ENIF(load_phy_devs_nif) {
+ENIF(enumerate_physical_devices_nif) {
     VkInstance *instance;
     uint32_t count = 0;
     enif_get_ulong(env, argv[1], (unsigned long*)&count);
@@ -174,8 +174,8 @@ ENIF(load_phy_devs_nif) {
 static ErlNifFunc nif_funcs[] = {
   {"create_instance", 1, create_instance_nif},
   {"destroy_instance", 1, destroy_instance_nif},
-  {"enum_phy_devs", 1, enum_phy_devs_nif},
-  {"load_phy_devs", 2, load_phy_devs_nif}
+  {"count_physical_devices", 1, count_physical_devices_nif},
+  {"enumerate_physical_devices", 2, enumerate_physical_devices_nif}
 };
 
 ERL_NIF_INIT(plain_vulkan, nif_funcs, &load, NULL, &upgrade, NULL);
