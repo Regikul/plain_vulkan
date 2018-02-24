@@ -1,6 +1,7 @@
 {application, plain_vulkan,
  [{description, "An OTP library"},
   {vsn, "0.1.0"},
+  {mod, {plain_vulkan_app, []}},
   {registered, []},
   {applications,
    [kernel,
