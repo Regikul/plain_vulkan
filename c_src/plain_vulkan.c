@@ -6,6 +6,7 @@
 #define ATOM_OK     enif_make_atom(env, "ok")
 #define ATOM_ERROR  enif_make_atom(env, "error")
 #define TUPLE_OK(Value)    enif_make_tuple(env, 2, ATOM_OK, Value)
+#define TUPLE_ERROR(Value)  enif_make_tuple(env, 2, ATOM_ERROR, Value)
 
 typedef enum {
     VK_INSTANCE,
@@ -101,19 +102,31 @@ static ERL_NIF_TERM enum_phy_devs_nif(ErlNifEnv* env, int argc, const ERL_NIF_TE
 
     VkInstance *instance;
 
-    if (enif_get_resource(env, argv[0], vk_resources[VK_INSTANCE].resource_type, (void **)instance) == 0)
+    if (enif_get_resource(env, argv[0], vk_resources[VK_INSTANCE].resource_type, (void **)&instance) == 0)
         return enif_make_badarg(env);
 
-    if (1 || vkEnumeratePhysicalDevices(*instance, &count, NULL) == VK_SUCCESS) {
-      ERL_NIF_TERM countTerm = enif_make_int(env, count);
-      return TUPLE_OK(countTerm);
-    } else {
-      return ATOM_ERROR;
+    ERL_NIF_TERM ret;
+
+    switch(vkEnumeratePhysicalDevices(*instance, &count, NULL)) {
+        case VK_SUCCESS:
+            ret = enif_make_ulong(env, count);
+            return TUPLE_OK(ret);
+        case VK_ERROR_OUT_OF_HOST_MEMORY:
+            ret = enif_make_atom(env, "out_of_host_memory");
+            return TUPLE_ERROR(ret);
+        case VK_ERROR_OUT_OF_DEVICE_MEMORY:
+            ret = enif_make_atom(env, "out_of_host_memory");
+            return TUPLE_ERROR(ret);
+        case VK_ERROR_INITIALIZATION_FAILED:
+            ret = enif_make_atom(env, "init_failed");
+            return TUPLE_ERROR(ret);
     }
+    return ATOM_ERROR;
 }
 
 static ERL_NIF_TERM destroy_instance_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
     VkInstance *instance;
+
     if (enif_get_resource(env, argv[0], vk_resources[VK_INSTANCE].resource_type, (void **)&instance) == 0)
         return enif_make_badarg(env);
 
