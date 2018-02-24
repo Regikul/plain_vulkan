@@ -1,6 +1,7 @@
 .rebar3
 _*
 .eunit
+c_src/*.d
 *.o
 *.so
 *.dll
