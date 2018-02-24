@@ -7,7 +7,7 @@ jobs:
       - checkout
       - run:
           name: vulkan api
-          command: apt-get update && apt-get instal libvulkan-dev
+          command: apt-get update && apt-get install libvulkan-dev
       - run:
           name: compile
           command: rebar3 compile
