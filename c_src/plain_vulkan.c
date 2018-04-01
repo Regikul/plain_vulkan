@@ -22,6 +22,7 @@
 
 typedef enum {
     VK_INSTANCE,
+    VK_LAYER_PROPS,
     VK_PHYS_DEV,
     VK_LOGI_DEV,
 
@@ -36,6 +37,7 @@ typedef struct {
 
 vk_resource_definition vk_resources[] = {
     {"VK_INSTANCE", NULL, NULL},
+    {"VK_LAYER_PROPS", NULL, NULL},
     {"VK_PHYS_DEV", NULL, NULL},
     {"VK_LOGI_DEV", NULL, NULL}
 };
@@ -119,8 +121,45 @@ static int upgrade(ErlNifEnv* env, void** priv, void** old_priv, ERL_NIF_TERM lo
     return open_resources(env);
 }
 
+ENIF(count_instance_layer_properties_nif) {
+    uint32_t count = 0;
+    ERL_NIF_TERM ret;
+
+    switch(vkEnumerateInstanceLayerProperties(&count, NULL)) {
+        case VK_SUCCESS:
+            ret = enif_make_ulong(env, count);
+            return TUPLE_OK(ret);
+        case VK_ERROR_OUT_OF_HOST_MEMORY:
+            return TUPLE_ERROR(ATOM_OUT_OF_HOST_MEM);
+        case VK_ERROR_OUT_OF_DEVICE_MEMORY:
+            return TUPLE_ERROR(ATOM_OUT_OF_DEVICE_MEM);
+    }
+    return ATOM_NIF_ERROR;
+}
+
 ENIF(count_instance_extension_properties_nif) {
-    return enif_make_tuple(env, 2, ATOM_ERROR, ATOM("not_implemented"));
+    uint32_t count = 0;
+    ERL_NIF_TERM ret;
+    unsigned layer_name_length = 0;
+
+    enif_get_list_length(env, argv[0], &layer_name_length);
+
+    char layer_name[layer_name_length + 1];
+    if (enif_get_string(env, argv[0], layer_name, layer_name_length, ERL_NIF_LATIN1) == 0)
+        return enif_make_badarg(env);
+
+    switch(vkEnumerateInstanceExtensionProperties(layer_name, &count, NULL)) {
+        case VK_SUCCESS:
+            ret = enif_make_ulong(env, count);
+            return TUPLE_OK(ret);
+        case VK_ERROR_OUT_OF_HOST_MEMORY:
+            return TUPLE_ERROR(ATOM_OUT_OF_HOST_MEM);
+        case VK_ERROR_OUT_OF_DEVICE_MEMORY:
+            return TUPLE_ERROR(ATOM_OUT_OF_DEVICE_MEM);
+        case VK_ERROR_LAYER_NOT_PRESENT:
+            return TUPLE_ERROR(ATOM("no_layer"));
+    }
+    return ATOM_NIF_ERROR;
 }
 
 ENIF(enumerate_instance_extension_properties_nif) {
@@ -235,6 +274,7 @@ ENIF(destroy_device_nif) {
 static ErlNifFunc nif_funcs[] = {
   {"create_instance", 1, create_instance_nif},
   {"destroy_instance", 1, destroy_instance_nif},
+  {"count_instance_layer_properties", 0, count_instance_layer_properties_nif},
   {"count_instance_extension_properties", 1, count_instance_extension_properties_nif},
   {"enumerate_instance_extension_properties", 2, enumerate_instance_extension_properties_nif},
   {"count_physical_devices", 1, count_physical_devices_nif},

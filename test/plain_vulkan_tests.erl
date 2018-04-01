@@ -5,7 +5,7 @@
 flow_test() ->
   {ok, Instance} = plain_vulkan:create_instance(?MODULE_STRING),
   case plain_vulkan:count_physical_devices(Instance) of
-    {ok, _Count} when is_integer(_Count) andalso _Count > 0 -> ok;
+    {ok, _CountDev} when is_integer(_CountDev) andalso _CountDev > 0 -> ok;
     out_of_device_memory -> ok;
     out_of_host_memory -> ok;
     init_failed -> ok

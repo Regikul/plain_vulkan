@@ -6,6 +6,7 @@
 -export([
   create_instance/1,
   destroy_instance/1,
+  count_instance_layer_properties/0,
   count_instance_extension_properties/1,
   enumerate_instance_extension_properties/2,
   enumerate_instance_extension_properties/1,
@@ -53,6 +54,9 @@ create_instance(_Name) -> erlang:nif_error({error, not_loaded}).
 
 -spec destroy_instance(vk_instance()) -> ok.
 destroy_instance(_Instance) -> erlang:nif_error({error, not_loaded}).
+
+-spec count_instance_layer_properties() -> non_neg_integer().
+count_instance_layer_properties() -> erlang:nif_error({error, not_loaded}).
 
 -spec count_instance_extension_properties(vk_instance()) -> non_neg_integer().
 count_instance_extension_properties(_Instance) -> erlang:nif_error({error, not_loaded}).
