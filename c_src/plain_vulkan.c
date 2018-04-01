@@ -19,6 +19,7 @@
 #define TUPLE_ERROR(Value)  enif_make_tuple(env, 2, ATOM_ERROR, Value)
 
 #define load_instance(Value) if (enif_get_resource(env, argv[0], vk_resources[VK_INSTANCE].resource_type, (void **)&Value) == 0) return enif_make_badarg(env);
+#define load_device(Value) if (enif_get_resource(env, argv[0], vk_resources[VK_DEVICE].resource_type, (void **)&Value) == 0) return enif_make_badarg(env);
 #define mk_erlang_bool(Value) (Value ? ATOM_TRUE : ATOM_FALSE)
 
 #define ENIF(name) static ERL_NIF_TERM name(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
@@ -140,8 +141,9 @@ ENIF(count_instance_layer_properties_nif) {
             return TUPLE_ERROR(ATOM_OUT_OF_HOST_MEM);
         case VK_ERROR_OUT_OF_DEVICE_MEMORY:
             return TUPLE_ERROR(ATOM_OUT_OF_DEVICE_MEM);
+        default:
+            return ATOM_NIF_ERROR;
     }
-    return ATOM_NIF_ERROR;
 }
 
 ENIF(count_instance_extension_properties_nif) {
@@ -165,8 +167,9 @@ ENIF(count_instance_extension_properties_nif) {
             return TUPLE_ERROR(ATOM_OUT_OF_DEVICE_MEM);
         case VK_ERROR_LAYER_NOT_PRESENT:
             return TUPLE_ERROR(ATOM("no_layer"));
+        default:
+            return ATOM_NIF_ERROR;
     }
-    return ATOM_NIF_ERROR;
 }
 
 ENIF(enumerate_instance_extension_properties_nif) {
@@ -190,8 +193,9 @@ ENIF(count_physical_devices_nif) {
             return TUPLE_ERROR(ATOM_OUT_OF_DEVICE_MEM);
         case VK_ERROR_INITIALIZATION_FAILED:
             return TUPLE_ERROR(ATOM_INIT_FAILED);
+        default:
+            return ATOM_NIF_ERROR;
     }
-    return ATOM_NIF_ERROR;
 }
 
 ENIF(enumerate_physical_devices_nif) {
@@ -213,7 +217,7 @@ ENIF(enumerate_physical_devices_nif) {
                 allocated  = (VkPhysicalDevice*) enif_alloc_resource(vk_resources[VK_PHYS_DEV].resource_type, sizeof(VkPhysicalDevice));
                 *allocated = devs[i];
                 res[i] = enif_make_resource(env, allocated);
-                enif_release_resource(res[i]);
+                enif_release_resource(allocated);
             }
             ERL_NIF_TERM ret = enif_make_list_from_array(env, res, count);
             if (result == VK_SUCCESS)
@@ -226,8 +230,9 @@ ENIF(enumerate_physical_devices_nif) {
             return TUPLE_ERROR(ATOM_OUT_OF_DEVICE_MEM);
         case VK_ERROR_INITIALIZATION_FAILED:
             return TUPLE_ERROR(ATOM_INIT_FAILED);
+        default:
+            return ATOM_NIF_ERROR;
     }
-    return ATOM_NIF_ERROR;
 }
 
 ENIF(get_physical_device_properties_nif) {
@@ -396,16 +401,37 @@ ENIF(get_device_queue_nif) {
     uint32_t queueFamilyIndex, queueIndex;
     VkQueue *queue;
 
-    if (enif_get_resource(env, argv[0], vk_resources[VK_DEVICE].resource_type, (void **)&device) == 0)
-        return enif_make_badarg(env);
+    load_device(device);
 
     queue = enif_alloc_resource(vk_resources[VK_QUEUE].resource_type, sizeof(VkQueue));
-    vkGetDeviceQueue(device, queueFamilyIndex, queueIndex, queue);
+    vkGetDeviceQueue(*device, queueFamilyIndex, queueIndex, queue);
 
     ERL_NIF_TERM term = enif_make_resource(env, queue);
     enif_release_resource(queue);
 
     return TUPLE_OK(term);
+}
+
+ENIF(create_command_pool_nif) {
+    VkDevice *device = NULL;
+    VkCommandPoolCreateInfo info;
+    VkCommandPool *pool = NULL;
+
+    load_device(device);
+
+    ERL_NIF_TERM term;
+    switch (vkCreateCommandPool(*device, &info, NULL, pool)) {
+        case VK_SUCCESS:
+            term = enif_make_resource(env, pool);
+            enif_release_resource(pool);
+            return TUPLE_OK(term);
+        case VK_ERROR_OUT_OF_HOST_MEMORY:
+            return TUPLE_ERROR(ATOM_OUT_OF_HOST_MEM);
+        case VK_ERROR_OUT_OF_DEVICE_MEMORY:
+            return TUPLE_ERROR(ATOM_OUT_OF_DEVICE_MEM);
+        default:
+            return ATOM_NIF_ERROR;
+    }
 }
 
 static ErlNifFunc nif_funcs[] = {
@@ -422,7 +448,8 @@ static ErlNifFunc nif_funcs[] = {
   {"get_physical_device_queue_family_properties", 2, get_physical_device_queue_family_properties_nif},
   {"create_device", 2, create_device_nif},
   {"destroy_device", 1, destroy_device_nif},
-  {"get_device_queue", 3, get_device_queue_nif}
+  {"get_device_queue", 3, get_device_queue_nif},
+  {"create_command_pool", 2, create_command_pool_nif}
 };
 
 ERL_NIF_INIT(plain_vulkan, nif_funcs, &load, NULL, &upgrade, NULL);
