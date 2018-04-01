@@ -413,8 +413,24 @@ ENIF(get_device_queue_nif) {
 }
 
 ENIF(create_command_pool_nif) {
-    VkDevice *device = NULL;
+    int arity = 0;
+    ERL_NIF_TERM *record;
+
+    if (!enif_is_tuple(env, argv[1]))
+        return enif_make_badarg(env);
+
     VkCommandPoolCreateInfo info;
+
+    enif_get_tuple(env, argv[1], &arity, (const ERL_NIF_TERM**) &record);
+    if (arity != 3)
+        return enif_make_badarg(env);
+
+    info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    info.pNext = NULL;
+    enif_get_ulong(env, record[1], (unsigned long *) &info.queueFamilyIndex);
+    enif_get_ulong(env, record[2], (unsigned long *) &info.flags);
+
+    VkDevice *device = NULL;
     VkCommandPool *pool = NULL;
 
     load_device(device);
