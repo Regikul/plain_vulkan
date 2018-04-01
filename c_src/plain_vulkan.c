@@ -28,6 +28,8 @@ typedef enum {
     VK_LAYER_PROPS,
     VK_PHYS_DEV,
     VK_LOGI_DEV,
+    VK_DEVICE,
+    VK_QUEUE,
 
     VK_RESOURCE_COUNT
 } vk_resource_enumeration;
@@ -42,7 +44,9 @@ vk_resource_definition vk_resources[] = {
     {"VK_INSTANCE", NULL, NULL},
     {"VK_LAYER_PROPS", NULL, NULL},
     {"VK_PHYS_DEV", NULL, NULL},
-    {"VK_LOGI_DEV", NULL, NULL}
+    {"VK_LOGI_DEV", NULL, NULL},
+    {"VK_DEVICE", NULL, NULL},
+    {"VK_QUEUE", NULL, NULL}
 };
 
 static int open_resources(ErlNifEnv* env) {
@@ -346,6 +350,23 @@ ENIF(destroy_device_nif) {
     return enif_make_tuple(env, 2, ATOM_ERROR, ATOM("not_implemented"));
 }
 
+ENIF(get_device_queue_nif) {
+    VkDevice *device = NULL;
+    uint32_t queueFamilyIndex, queueIndex;
+    VkQueue *queue;
+
+    if (enif_get_resource(env, argv[0], vk_resources[VK_DEVICE].resource_type, (void **)&device) == 0)
+        return enif_make_badarg(env);
+
+    queue = enif_alloc_resource(vk_resources[VK_QUEUE].resource_type, sizeof(VkQueue));
+    vkGetDeviceQueue(device, queueFamilyIndex, queueIndex, queue);
+
+    ERL_NIF_TERM term = enif_make_resource(env, queue);
+    enif_release_resource(queue);
+
+    return TUPLE_OK(term);
+}
+
 static ErlNifFunc nif_funcs[] = {
   {"create_instance", 1, create_instance_nif},
   {"destroy_instance", 1, destroy_instance_nif},
@@ -359,7 +380,8 @@ static ErlNifFunc nif_funcs[] = {
   {"get_physical_device_queue_family_count", 1, get_physical_device_queue_family_count_nif},
   {"get_physical_device_queue_family_properties", 2, get_physical_device_queue_family_properties_nif},
   {"create_device", 2, create_device_nif},
-  {"destroy_device", 1, destroy_device_nif}
+  {"destroy_device", 1, destroy_device_nif},
+  {"get_device_queue", 3, get_device_queue_nif}
 };
 
 ERL_NIF_INIT(plain_vulkan, nif_funcs, &load, NULL, &upgrade, NULL);
