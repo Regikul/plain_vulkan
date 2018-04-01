@@ -23,6 +23,7 @@
 typedef enum {
     VK_INSTANCE,
     VK_PHYS_DEV,
+    VK_LOGI_DEV,
 
     VK_RESOURCE_COUNT
 } vk_resource_enumeration;
@@ -35,7 +36,8 @@ typedef struct {
 
 vk_resource_definition vk_resources[] = {
     {"VK_INSTANCE", NULL, NULL},
-    {"VK_PHYS_DEV", NULL, NULL}
+    {"VK_PHYS_DEV", NULL, NULL},
+    {"VK_LOGI_DEV", NULL, NULL}
 };
 
 static int open_resources(ErlNifEnv* env) {
@@ -115,6 +117,14 @@ static int load(ErlNifEnv* env, void** priv, ERL_NIF_TERM load_info)
 static int upgrade(ErlNifEnv* env, void** priv, void** old_priv, ERL_NIF_TERM load_info)
 {
     return open_resources(env);
+}
+
+ENIF(count_instance_extension_properties_nif) {
+    return enif_make_tuple(env, 2, ATOM_ERROR, ATOM("not_implemented"));
+}
+
+ENIF(enumerate_instance_extension_properties_nif) {
+    return enif_make_tuple(env, 2, ATOM_ERROR, ATOM("not_implemented"));
 }
 
 ENIF(count_physical_devices_nif) {
@@ -202,12 +212,39 @@ ENIF(get_physical_device_properties_nif) {
                           );
 }
 
+ENIF(get_physical_device_features_nif) {
+    return enif_make_tuple(env, 2, ATOM_ERROR, ATOM("not_implemented"));
+}
+
+ENIF(get_physical_device_queue_family_count_nif) {
+    return enif_make_tuple(env, 2, ATOM_ERROR, ATOM("not_implemented"));
+}
+
+ENIF(get_physical_device_queue_family_properties_nif) {
+    return enif_make_tuple(env, 2, ATOM_ERROR, ATOM("not_implemented"));
+}
+
+ENIF(create_device_nif) {
+    return enif_make_tuple(env, 2, ATOM_ERROR, ATOM("not_implemented"));
+}
+
+ENIF(destroy_device_nif) {
+    return enif_make_tuple(env, 2, ATOM_ERROR, ATOM("not_implemented"));
+}
+
 static ErlNifFunc nif_funcs[] = {
   {"create_instance", 1, create_instance_nif},
   {"destroy_instance", 1, destroy_instance_nif},
+  {"count_instance_extension_properties", 1, count_instance_extension_properties_nif},
+  {"enumerate_instance_extension_properties", 2, enumerate_instance_extension_properties_nif},
   {"count_physical_devices", 1, count_physical_devices_nif},
   {"enumerate_physical_devices", 2, enumerate_physical_devices_nif},
-  {"get_physical_device_properties", 1, get_physical_device_properties_nif}
+  {"get_physical_device_properties", 1, get_physical_device_properties_nif},
+  {"get_physical_device_features", 1, get_physical_device_features_nif},
+  {"get_physical_device_queue_family_count", 1, get_physical_device_queue_family_count_nif},
+  {"get_physical_device_queue_family_properties", 2, get_physical_device_queue_family_properties_nif},
+  {"create_device", 2, create_device_nif},
+  {"destroy_device", 1, destroy_device_nif}
 };
 
 ERL_NIF_INIT(plain_vulkan, nif_funcs, &load, NULL, &upgrade, NULL);

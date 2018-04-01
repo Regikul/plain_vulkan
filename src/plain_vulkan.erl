@@ -6,10 +6,19 @@
 -export([
   create_instance/1,
   destroy_instance/1,
+  count_instance_extension_properties/1,
+  enumerate_instance_extension_properties/2,
+  enumerate_instance_extension_properties/1,
   count_physical_devices/1,
   enumerate_physical_devices/2,
   enumerate_physical_devices/1,
-  get_physical_device_properties/1
+  get_physical_device_properties/1,
+  get_physical_device_features/1,
+  get_physical_device_queue_family_count/1,
+  get_physical_device_queue_family_properties/2,
+  get_physical_device_queue_family_properties/1,
+  create_device/2,
+  destroy_device/1
 ]).
 
 -type vk_instance() :: reference().
@@ -45,6 +54,22 @@ create_instance(_Name) -> erlang:nif_error({error, not_loaded}).
 -spec destroy_instance(vk_instance()) -> ok.
 destroy_instance(_Instance) -> erlang:nif_error({error, not_loaded}).
 
+-spec count_instance_extension_properties(vk_instance()) -> non_neg_integer().
+count_instance_extension_properties(_Instance) -> erlang:nif_error({error, not_loaded}).
+
+-spec enumerate_instance_extension_properties(vk_instance(), pos_integer()) -> term().
+enumerate_instance_extension_properties(_Instace, _Count) -> erlang:nif_error({error, not_loaded}).
+
+-spec enumerate_instance_extension_properties(vk_instance()) -> term().
+enumerate_instance_extension_properties(Instance) ->
+  case count_instance_extension_properties(Instance) of
+    {'ok', Count} -> case enumerate_instance_extension_properties(Instance, Count) of
+                       {ok, _} = Ret -> Ret;
+                       _Else -> _Else
+                     end;
+    _Else -> _Else
+  end.
+
 -spec count_physical_devices(vk_instance()) -> vk_count_dev_ret().
 count_physical_devices(_Instance) -> erlang:nif_error({error, not_loaded}).
 
@@ -63,6 +88,31 @@ enumerate_physical_devices(Instance) ->
 
 -spec get_physical_device_properties(vk_physical_device()) -> vk_physical_device_properties().
 get_physical_device_properties(_Device) -> erlang:nif_error({error, not_loaded}).
+
+-spec get_physical_device_features(vk_physical_device()) -> term().
+get_physical_device_features(_Device) -> erlang:nif_error({error, not_loaded}).
+
+-spec get_physical_device_queue_family_count(vk_physical_device()) -> non_neg_integer().
+get_physical_device_queue_family_count(_Device) -> erlang:nif_error({error, not_loaded}).
+
+-spec get_physical_device_queue_family_properties(vk_physical_device(), pos_integer()) -> term().
+get_physical_device_queue_family_properties(_Device, _Count) -> erlang:nif_error({error, not_loaded}).
+
+-spec get_physical_device_queue_family_properties(vk_physical_device()) -> term().
+get_physical_device_queue_family_properties(Device) ->
+  case get_physical_device_queue_family_count(Device) of
+    {ok, Count} -> case get_physical_device_queue_family_properties(Device, Count) of
+                     {ok, _} = Ret -> Ret;
+                     _Else -> _Else
+                   end;
+    _Else -> _Else
+  end.
+
+-spec create_device(vk_physical_device(), term()) -> term().
+create_device(_PhysDev, _CreateInfo) -> erlang:nif_error({error, not_loaded}).
+
+-spec destroy_device(term()) -> term().
+destroy_device(_LogicDev) -> erlang:nif_error({error, not_loaded}).
 
 %%====================================================================
 %% Internal functions
