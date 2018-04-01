@@ -40,13 +40,13 @@
 %%====================================================================
 
 -spec create_instance(string()) -> {ok, vk_instance()} | error.
-create_instance(_) -> erlang:nif_error({error, not_loaded}).
+create_instance(_Name) -> erlang:nif_error({error, not_loaded}).
 
 -spec destroy_instance(vk_instance()) -> ok.
-destroy_instance(_) -> erlang:nif_error({error, not_loaded}).
+destroy_instance(_Instance) -> erlang:nif_error({error, not_loaded}).
 
 -spec count_physical_devices(vk_instance()) -> vk_count_dev_ret().
-count_physical_devices(_) -> erlang:nif_error({error, not_loaded}).
+count_physical_devices(_Instance) -> erlang:nif_error({error, not_loaded}).
 
 -spec enumerate_physical_devices(vk_instance(), non_neg_integer()) -> vk_enumerate_dev_ret().
 enumerate_physical_devices(_Instance, _Count) -> erlang:nif_error({error, not_loaded}).
