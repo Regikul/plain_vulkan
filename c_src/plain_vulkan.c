@@ -8,6 +8,8 @@
 #define ATOM_ERROR      ATOM("error")
 #define ATOM_NIF_ERROR  ATOM("nif_error")
 #define ATOM_UNDEFINED  ATOM("undefined")
+#define ATOM_TRUE       ATOM("true")
+#define ATOM_FALSE      ATOM("false")
 
 #define ATOM_OUT_OF_HOST_MEM        ATOM("out_of_host_memory")
 #define ATOM_OUT_OF_DEVICE_MEM      ATOM("out_of_device_memory")
@@ -17,6 +19,7 @@
 #define TUPLE_ERROR(Value)  enif_make_tuple(env, 2, ATOM_ERROR, Value)
 
 #define load_instance(Value) if (enif_get_resource(env, argv[0], vk_resources[VK_INSTANCE].resource_type, (void **)&Value) == 0) return enif_make_badarg(env);
+#define mk_erlang_bool(Value) (Value ? ATOM_TRUE : ATOM_FALSE)
 
 #define ENIF(name) static ERL_NIF_TERM name(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 
@@ -213,7 +216,71 @@ ENIF(get_physical_device_properties_nif) {
 }
 
 ENIF(get_physical_device_features_nif) {
-    return enif_make_tuple(env, 2, ATOM_ERROR, ATOM("not_implemented"));
+    VkPhysicalDevice *device = NULL;
+    VkPhysicalDeviceFeatures features = {0};
+
+    if (enif_get_resource(env, argv[0], vk_resources[VK_PHYS_DEV].resource_type, (void **)&device) == 0)
+        return enif_make_badarg(env);
+
+    vkGetPhysicalDeviceFeatures(*device, &features);
+
+    return enif_make_tuple(env, 55, ATOM("vk_physical_device_features")
+                                  , mk_erlang_bool(features.robustBufferAccess)
+                                  , mk_erlang_bool(features.fullDrawIndexUint32)
+                                  , mk_erlang_bool(features.imageCubeArray)
+                                  , mk_erlang_bool(features.independentBlend)
+                                  , mk_erlang_bool(features.geometryShader)
+                                  , mk_erlang_bool(features.tessellationShader)
+                                  , mk_erlang_bool(features.sampleRateShading)
+                                  , mk_erlang_bool(features.dualSrcBlend)
+                                  , mk_erlang_bool(features.logicOp)
+                                  , mk_erlang_bool(features.multiDrawIndirect)
+                                  , mk_erlang_bool(features.drawIndirectFirstInstance)
+                                  , mk_erlang_bool(features.depthClamp)
+                                  , mk_erlang_bool(features.depthBiasClamp)
+                                  , mk_erlang_bool(features.fillModeNonSolid)
+                                  , mk_erlang_bool(features.depthBounds)
+                                  , mk_erlang_bool(features.wideLines)
+                                  , mk_erlang_bool(features.largePoints)
+                                  , mk_erlang_bool(features.alphaToOne)
+                                  , mk_erlang_bool(features.multiViewport)
+                                  , mk_erlang_bool(features.samplerAnisotropy)
+                                  , mk_erlang_bool(features.textureCompressionETC2)
+                                  , mk_erlang_bool(features.textureCompressionASTC_LDR)
+                                  , mk_erlang_bool(features.textureCompressionBC)
+                                  , mk_erlang_bool(features.occlusionQueryPrecise)
+                                  , mk_erlang_bool(features.pipelineStatisticsQuery)
+                                  , mk_erlang_bool(features.vertexPipelineStoresAndAtomics)
+                                  , mk_erlang_bool(features.fragmentStoresAndAtomics)
+                                  , mk_erlang_bool(features.shaderTessellationAndGeometryPointSize)
+                                  , mk_erlang_bool(features.shaderImageGatherExtended)
+                                  , mk_erlang_bool(features.shaderStorageImageExtendedFormats)
+                                  , mk_erlang_bool(features.shaderStorageImageMultisample)
+                                  , mk_erlang_bool(features.shaderStorageImageReadWithoutFormat)
+                                  , mk_erlang_bool(features.shaderStorageImageWriteWithoutFormat)
+                                  , mk_erlang_bool(features.shaderUniformBufferArrayDynamicIndexing)
+                                  , mk_erlang_bool(features.shaderSampledImageArrayDynamicIndexing)
+                                  , mk_erlang_bool(features.shaderStorageBufferArrayDynamicIndexing)
+                                  , mk_erlang_bool(features.shaderStorageImageArrayDynamicIndexing)
+                                  , mk_erlang_bool(features.shaderClipDistance)
+                                  , mk_erlang_bool(features.shaderCullDistance)
+                                  , mk_erlang_bool(features.shaderFloat64)
+                                  , mk_erlang_bool(features.shaderInt64)
+                                  , mk_erlang_bool(features.shaderInt16)
+                                  , mk_erlang_bool(features.shaderResourceResidency)
+                                  , mk_erlang_bool(features.shaderResourceMinLod)
+                                  , mk_erlang_bool(features.sparseBinding)
+                                  , mk_erlang_bool(features.sparseResidencyBuffer)
+                                  , mk_erlang_bool(features.sparseResidencyImage2D)
+                                  , mk_erlang_bool(features.sparseResidencyImage3D)
+                                  , mk_erlang_bool(features.sparseResidency2Samples)
+                                  , mk_erlang_bool(features.sparseResidency4Samples)
+                                  , mk_erlang_bool(features.sparseResidency8Samples)
+                                  , mk_erlang_bool(features.sparseResidency16Samples)
+                                  , mk_erlang_bool(features.sparseResidencyAliased)
+                                  , mk_erlang_bool(features.variableMultisampleRate)
+                                  , mk_erlang_bool(features.inheritedQueries)
+                                  );
 }
 
 ENIF(get_physical_device_queue_family_count_nif) {
