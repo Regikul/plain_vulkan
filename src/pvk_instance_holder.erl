@@ -5,7 +5,10 @@
 -include("plain_vulkan.hrl").
 
 %% API
--export([start_link/1]).
+-export([
+  start_link/1,
+  devices_list/1
+]).
 
 %% gen_server callbacks
 -export([init/1
@@ -16,14 +19,19 @@
         ,code_change/3
         ]).
 
--record(state, {vk_instance_ref :: reference()
-               }).
+-record(state, {
+  vk_instance_ref :: reference(),
+  vk_devices = [] :: plain_vulkan:vk_physical_device()
+}).
 
 -type state() :: #state{}.
 
 %%%===================================================================
 %%% API
 %%%===================================================================
+-spec devices_list(pid()) -> [vk_physical_device_properties()].
+devices_list(Srv) ->
+  gen_server:call(Srv, {device_list}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -53,7 +61,14 @@ start_link(AppName) ->
 -spec init(term()) -> {ok, state()} | {ok, state(), timeout() | hibernate} | {stop, term()} | ignore.
 init([AppName]) ->
     {'ok', VkInstance} = plain_vulkan:create_instance(AppName),
-    {ok, #state{vk_instance_ref = VkInstance}}.
+    case plain_vulkan:enumerate_physical_devices(VkInstance) of
+      {_, Devices} -> {ok, #state{vk_instance_ref = VkInstance
+                                 ,vk_devices = Devices
+                                 }};
+      Error ->
+        plain_vulkan:destroy_instance(VkInstance),
+        {stop, Error}
+    end.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -69,6 +84,8 @@ init([AppName]) ->
     {noreply, state(), timeout() | hibernate} |
     {stop, term(), term(),state()} |
     {stop, term(), state()}.
+handle_call({device_list}, _From, #state{vk_devices = Devices} = State) ->
+    {reply, Devices, State};
 handle_call(_Request, _From, State) ->
     {reply, ok, State}.
 
