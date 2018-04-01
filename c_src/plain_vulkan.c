@@ -284,7 +284,15 @@ ENIF(get_physical_device_features_nif) {
 }
 
 ENIF(get_physical_device_queue_family_count_nif) {
-    return enif_make_tuple(env, 2, ATOM_ERROR, ATOM("not_implemented"));
+    VkPhysicalDevice *device = NULL;
+    uint32_t propCount = 0;
+
+    if (enif_get_resource(env, argv[0], vk_resources[VK_PHYS_DEV].resource_type, (void **)&device) == 0)
+        return enif_make_badarg(env);
+
+    vkGetPhysicalDeviceQueueFamilyProperties(*device, &propCount, NULL);
+
+    return TUPLE_OK(enif_make_int(env, propCount));
 }
 
 ENIF(get_physical_device_queue_family_properties_nif) {
