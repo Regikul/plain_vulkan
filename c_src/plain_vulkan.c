@@ -267,7 +267,7 @@ ENIF(get_physical_device_features_nif) {
 
     vkGetPhysicalDeviceFeatures(*device, &features);
 
-    return enif_make_tuple(env, 55, ATOM("vk_physical_device_features")
+    return enif_make_tuple(env, 56, ATOM("vk_physical_device_features")
                                   , mk_erlang_bool(features.robustBufferAccess)
                                   , mk_erlang_bool(features.fullDrawIndexUint32)
                                   , mk_erlang_bool(features.imageCubeArray)
@@ -339,7 +339,48 @@ ENIF(get_physical_device_queue_family_count_nif) {
 }
 
 ENIF(get_physical_device_queue_family_properties_nif) {
-    return enif_make_tuple(env, 2, ATOM_ERROR, ATOM("not_implemented"));
+    VkPhysicalDevice *device = NULL;
+    uint32_t count = 0;
+
+    if (enif_get_resource(env, argv[0], vk_resources[VK_PHYS_DEV].resource_type, (void **)&device) == 0)
+        return enif_make_badarg(env);
+
+    if (enif_get_ulong(env, argv[1], (unsigned long*)&count) == 0)
+        return enif_make_badarg(env);
+
+    VkQueueFamilyProperties props[count];
+    ERL_NIF_TERM res[count];
+
+    vkGetPhysicalDeviceQueueFamilyProperties(*device, &count, props);
+
+    for(unsigned i = 0; i < count; i++) {
+        VkQueueFamilyProperties *c = props + i;
+        VkExtent3D *ce = &(c->minImageTransferGranularity);
+
+        ERL_NIF_TERM minImageTransferGranularity = enif_make_tuple(env, 4, ATOM("vk_extent_3d")
+                                                                         , enif_make_int(env, ce->width)
+                                                                         , enif_make_int(env, ce->height)
+                                                                         , enif_make_int(env, ce->depth)
+                                                                         );
+        ERL_NIF_TERM flags = enif_make_list(env, 0);
+        if (c->queueFlags & VK_QUEUE_GRAPHICS_BIT)
+            flags = enif_make_list_cell(env, ATOM("graphics"), flags);
+        if (c->queueFlags & VK_QUEUE_COMPUTE_BIT)
+            flags = enif_make_list_cell(env, ATOM("compute"), flags);
+        if (c->queueFlags & VK_QUEUE_TRANSFER_BIT)
+            flags = enif_make_list_cell(env, ATOM("transfer"), flags);
+        if (c->queueFlags & VK_QUEUE_SPARSE_BINDING_BIT)
+            flags = enif_make_list_cell(env, ATOM("sparse_bindigng"), flags);
+
+        res[i] = enif_make_tuple(env, 5, ATOM("vk_queue_family_properties")
+                                       , flags
+                                       , enif_make_int(env, c->queueCount)
+                                       , enif_make_int(env, c->timestampValidBits)
+                                       , minImageTransferGranularity
+                                       );
+    }
+
+    return TUPLE_OK(enif_make_list_from_array(env, res, count));
 }
 
 ENIF(create_device_nif) {

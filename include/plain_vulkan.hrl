@@ -87,5 +87,21 @@
   variableMultisampleRate :: boolean(),
   inheritedQueries :: boolean()
 }).
+-type vk_physical_device_features() :: #vk_physical_device_features{}.
+
+-record(vk_extent_3d, {
+  width :: non_neg_integer(),
+  height :: non_neg_integer(),
+  depth :: non_neg_integer()
+}).
+-type vk_extent_3d() :: #vk_extent_3d{}.
+
+-record(vk_queue_family_properties, {
+  queueFlags = [] :: [atom()],
+  queueCount :: non_neg_integer(),
+  timestampValidBits :: non_neg_integer(),
+  minImageTransferGranularity :: #vk_extent_3d{}
+}).
+-type vk_queue_family_properties() :: #vk_queue_family_properties{}.
 
 -endif.

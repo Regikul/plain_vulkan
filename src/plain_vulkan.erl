@@ -94,7 +94,7 @@ enumerate_physical_devices(Instance) ->
 -spec get_physical_device_properties(vk_physical_device()) -> vk_physical_device_properties().
 get_physical_device_properties(_Device) -> erlang:nif_error({error, not_loaded}).
 
--spec get_physical_device_features(vk_physical_device()) -> term().
+-spec get_physical_device_features(vk_physical_device()) -> vk_physical_device_features().
 get_physical_device_features(_Device) -> erlang:nif_error({error, not_loaded}).
 
 -spec get_physical_device_queue_family_count(vk_physical_device()) -> non_neg_integer().
