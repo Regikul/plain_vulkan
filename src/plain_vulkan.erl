@@ -20,7 +20,8 @@
   get_physical_device_queue_family_properties/1,
   create_device/2,
   destroy_device/1,
-  get_device_queue/3
+  get_device_queue/3,
+  create_command_pool/2
 ]).
 
 -type vk_instance() :: reference().
@@ -121,6 +122,9 @@ destroy_device(_LogicDev) -> erlang:nif_error({error, not_loaded}).
 
 -spec get_device_queue(term(), term(), term()) -> term().
 get_device_queue(_Dev, _QueueFamilyIndex, _QueueIndex) -> erlang:nif_error({error, not_loaded}).
+
+-spec create_command_pool(term(), term()) -> term().
+create_command_pool(_Dev, _CreateInfo) -> erlang:nif_error({error, not_loaded}).
 
 %%====================================================================
 %% Internal functions
