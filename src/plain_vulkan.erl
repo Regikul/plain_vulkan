@@ -4,24 +4,27 @@
 
 %% API exports
 -export([
-  create_instance/1,
-  destroy_instance/1,
+  create_instance/1, destroy_instance/1,
+
   count_instance_layer_properties/0,
+
   count_instance_extension_properties/1,
-  enumerate_instance_extension_properties/2,
   enumerate_instance_extension_properties/1,
+
   count_physical_devices/1,
-  enumerate_physical_devices/2,
   enumerate_physical_devices/1,
+
   get_physical_device_properties/1,
   get_physical_device_features/1,
+
   get_physical_device_queue_family_count/1,
-  get_physical_device_queue_family_properties/2,
   get_physical_device_queue_family_properties/1,
-  create_device/2,
-  destroy_device/1,
+
   get_device_queue/3,
-  create_command_pool/2
+
+  create_device/2, destroy_device/1,
+
+  create_command_pool/2, destroy_command_pool/2
 ]).
 
 -type vk_instance() :: reference().
@@ -165,6 +168,10 @@ create_command_pool(Dev, #vk_command_pool_create_info{flags = ListFlags} = Creat
 
 -spec create_command_pool_nif(vk_device(), vk_command_pool_create_info()) -> either(vk_command_pool(), atom()).
 create_command_pool_nif(_Dev, _CreateInfo) -> erlang:nif_error({error, not_loaded}).
+
+-spec destroy_command_pool(vk_device(), vk_command_pool()) -> ok.
+destroy_command_pool(_Device, _Pool) -> erlang:nif_error({error, not_loaded}).
+
 %%====================================================================
 %% Internal functions
 %%====================================================================

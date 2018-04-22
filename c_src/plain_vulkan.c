@@ -94,6 +94,11 @@ ENIF(create_instance_nif) {
     app_info.engineVersion = 1;
     app_info.apiVersion = VK_API_VERSION_1_0;
 
+    const char* validationlayers[] = { "VK_LAYER_LUNARG_parameter_validation",
+                                       "VK_LAYER_LUNARG_object_tracker",
+                                       "VK_LAYER_LUNARG_core_validation"
+                                     };
+
     // initialize the VkInstanceCreateInfo structure
     VkInstanceCreateInfo inst_info = {};
     inst_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
@@ -102,8 +107,8 @@ ENIF(create_instance_nif) {
     inst_info.pApplicationInfo = &app_info;
     inst_info.enabledExtensionCount = 0;
     inst_info.ppEnabledExtensionNames = NULL;
-    inst_info.enabledLayerCount = 0;
-    inst_info.ppEnabledLayerNames = NULL;
+    inst_info.enabledLayerCount = 3;
+    inst_info.ppEnabledLayerNames = validationlayers;
 
     instance = enif_alloc_resource(vk_resources[VK_INSTANCE].resource_type, sizeof(VkInstance));
 
@@ -597,7 +602,8 @@ ENIF(create_command_pool_nif) {
     const ERL_NIF_TERM *record;
     VkResult result;
 
-    load_device(device);
+    if (!enif_get_resource(env, argv[0], vk_resources[VK_LOGI_DEV].resource_type, (void **)&device))
+        return enif_make_badarg(env);
 
     if (!enif_is_tuple(env, argv[1]))
         return enif_make_badarg(env);
@@ -622,7 +628,6 @@ ENIF(create_command_pool_nif) {
             enif_release_resource(pool);
             return TUPLE_OK(term);
     } else switch (result) {
-        case VK_SUCCESS:
         case VK_ERROR_OUT_OF_HOST_MEMORY:
             return TUPLE_ERROR(ATOM_OUT_OF_HOST_MEM);
         case VK_ERROR_OUT_OF_DEVICE_MEMORY:
@@ -630,6 +635,21 @@ ENIF(create_command_pool_nif) {
         default:
             return ATOM_NIF_ERROR;
     }
+}
+
+ENIF(destroy_command_pool_nif) {
+    VkDevice *device;
+    VkCommandPool *pool;
+
+    if (!enif_get_resource(env, argv[0], vk_resources[VK_LOGI_DEV].resource_type, (void **)&device))
+        return enif_make_badarg(env);
+
+    if (!enif_get_resource(env, argv[1], vk_resources[VK_COMMAND_POOL].resource_type, (void**)pool))
+        return enif_make_badarg(env);
+
+    vkDestroyCommandPool(*device, pool, NULL);
+
+    return ATOM_OK;
 }
 
 static ErlNifFunc nif_funcs[] = {
@@ -647,7 +667,8 @@ static ErlNifFunc nif_funcs[] = {
   {"create_device", 2, create_device_nif},
   {"destroy_device", 1, destroy_device_nif},
   {"get_device_queue", 3, get_device_queue_nif},
-  {"create_command_pool_nif", 2, create_command_pool_nif}
+  {"create_command_pool_nif", 2, create_command_pool_nif},
+  {"destroy_command_pool", 2, destroy_command_pool_nif}
 };
 
 ERL_NIF_INIT(plain_vulkan, nif_funcs, &load, NULL, &upgrade, NULL);

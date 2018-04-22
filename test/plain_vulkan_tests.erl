@@ -20,7 +20,11 @@ flow_test() ->
   {ok, Device} = plain_vulkan:create_device(PhysDevice, DeviceCreateInfo),
   _ComputeQueue = plain_vulkan:get_device_queue(Device, ComputeFamily, 0),
 
-  plain_vulkan:destroy_device(Device),
+  CommandPoolInfo = #vk_command_pool_create_info{flags = [transient, reset], queue_family_index = ComputeFamily},
+  {ok, CommandPool} = plain_vulkan:create_command_pool(Device, CommandPoolInfo),
+
+  ok = plain_vulkan:destroy_command_pool(Device, CommandPool),
+  ok = plain_vulkan:destroy_device(Device),
   ok = plain_vulkan:destroy_instance(Instance).
 
 find_compute_queue(#vk_queue_family_properties{queueFlags = Flags, familyIndex = Index}, null) ->
