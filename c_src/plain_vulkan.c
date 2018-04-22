@@ -382,11 +382,12 @@ ENIF(get_physical_device_queue_family_properties_nif) {
         if (c->queueFlags & VK_QUEUE_SPARSE_BINDING_BIT)
             flags = enif_make_list_cell(env, ATOM("sparse_bindigng"), flags);
 
-        res[i] = enif_make_tuple(env, 5, ATOM("vk_queue_family_properties")
+        res[i] = enif_make_tuple(env, 6, ATOM("vk_queue_family_properties")
                                        , flags
                                        , enif_make_int(env, c->queueCount)
                                        , enif_make_int(env, c->timestampValidBits)
                                        , minImageTransferGranularity
+                                       , enif_make_int(env, i)
                                        );
     }
 

@@ -100,7 +100,8 @@
   queueFlags = [] :: [atom()],
   queueCount :: non_neg_integer(),
   timestampValidBits :: non_neg_integer(),
-  minImageTransferGranularity :: #vk_extent_3d{}
+  minImageTransferGranularity :: #vk_extent_3d{},
+  familyIndex :: non_neg_integer()
 }).
 -type vk_queue_family_properties() :: #vk_queue_family_properties{}.
 
