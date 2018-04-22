@@ -114,7 +114,7 @@ get_physical_device_queue_family_properties(Device) ->
     _Else -> _Else
   end.
 
--spec create_device(vk_physical_device(), term()) -> term().
+-spec create_device(vk_physical_device(), vk_device_create_info()) -> term().
 create_device(_PhysDev, _CreateInfo) -> erlang:nif_error({error, not_loaded}).
 
 -spec destroy_device(term()) -> term().

@@ -104,4 +104,17 @@
 }).
 -type vk_queue_family_properties() :: #vk_queue_family_properties{}.
 
+-record(vk_device_queue_create_info, {
+  queue_family_index :: non_neg_integer(),
+  queue_count :: pos_integer(),
+  queue_priorities :: [float()]
+}).
+-type vk_device_queue_create_info() :: #vk_device_queue_create_info{}.
+
+-record(vk_device_create_info, {
+  queue_create_infos = [] :: [vk_device_queue_create_info()],
+  enabled_features :: vk_physical_device_features()
+}).
+-type vk_device_create_info() :: #vk_device_create_info{}.
+
 -endif.

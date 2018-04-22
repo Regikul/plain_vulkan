@@ -14,6 +14,10 @@
 #define ATOM_OUT_OF_HOST_MEM        ATOM("out_of_host_memory")
 #define ATOM_OUT_OF_DEVICE_MEM      ATOM("out_of_device_memory")
 #define ATOM_INIT_FAILED            ATOM("init_failed")
+#define ATOM_EXTEN_NOT_PRESENT      ATOM("extension_not_present")
+#define ATOM_FEATURE_NOT_PRESENT    ATOM("feature_not_present")
+#define ATOM_TOO_MANY_OBJECTS       ATOM("too_many_objects")
+#define ATOM_DEVICE_LOST            ATOM("device_lost")
 
 #define TUPLE_OK(Value)     enif_make_tuple(env, 2, ATOM_OK, Value)
 #define TUPLE_ERROR(Value)  enif_make_tuple(env, 2, ATOM_ERROR, Value)
@@ -21,6 +25,7 @@
 #define load_instance(Value) if (enif_get_resource(env, argv[0], vk_resources[VK_INSTANCE].resource_type, (void **)&Value) == 0) return enif_make_badarg(env);
 #define load_device(Value) if (enif_get_resource(env, argv[0], vk_resources[VK_DEVICE].resource_type, (void **)&Value) == 0) return enif_make_badarg(env);
 #define mk_erlang_bool(Value) (Value ? ATOM_TRUE : ATOM_FALSE)
+#define from_erlang_bool(Value) (enif_is_identical(Value, ATOM_TRUE))
 
 #define ENIF(name) static ERL_NIF_TERM name(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 
@@ -389,7 +394,155 @@ ENIF(get_physical_device_queue_family_properties_nif) {
 }
 
 ENIF(create_device_nif) {
-    return enif_make_tuple(env, 2, ATOM_ERROR, ATOM("not_implemented"));
+    VkPhysicalDevice *device = NULL;
+    VkDevice *logic_dev = NULL;
+
+    if (enif_get_resource(env, argv[0], vk_resources[VK_PHYS_DEV].resource_type, (void **)&device) == 0)
+        return enif_make_badarg(env);
+
+    int arity;
+    const ERL_NIF_TERM *argv1;
+    if (!enif_get_tuple(env, argv[1], &arity, &argv1) || !enif_is_identical(argv1[0], ATOM("vk_device_create_info")))
+        return enif_make_badarg(env);
+
+    if (!enif_is_list(env, argv1[1]))
+        return enif_make_badarg(env);
+
+    VkResult ret_code;
+    uint32_t queue_info_count = 0;
+    enif_get_list_length(env, argv1[1], &queue_info_count);
+    VkDeviceQueueCreateInfo queue_create_info[queue_info_count];
+
+    for (unsigned i = 0; i < queue_info_count; i++) {
+        const ERL_NIF_TERM *device_queue_create_info;
+        if (!enif_get_tuple(env, argv1[1], &arity, &device_queue_create_info)
+            || !enif_is_identical(device_queue_create_info[0], ATOM("vk_device_queue_create_info"))
+           )
+            return enif_make_badarg(env);
+
+
+        queue_create_info[i].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+        queue_create_info[i].pNext = NULL;
+        queue_create_info[i].flags = 0;
+        if (!enif_get_int(env, device_queue_create_info[1], (int*)&queue_create_info[i].queueFamilyIndex))
+            return enif_make_badarg(env);
+        if (!enif_get_int(env, device_queue_create_info[2], (int*)&queue_create_info[i].queueCount))
+            return enif_make_badarg(env);
+        unsigned int priority_length;
+        if (!enif_get_list_length(env, device_queue_create_info[3], &priority_length))
+            return enif_make_badarg(env);
+
+        float *priorities = enif_alloc(priority_length * sizeof(float));
+        ERL_NIF_TERM tail = device_queue_create_info[3];
+        for (unsigned j = 0; !enif_is_empty_list(env, tail) && j < priority_length; j++) {
+            ERL_NIF_TERM head;
+            enif_get_list_cell(env, tail, &head, &tail);
+            double val;
+            if (!enif_get_double(env, head, &val)) {
+                enif_free((void *)priorities);
+                for (unsigned z = 0; i > 1 && z < i - 1; z++){
+                    enif_free((void*)queue_create_info[z].pQueuePriorities);
+                }
+                return enif_make_badarg(env);
+            }
+            priorities[j] = val;
+        }
+        queue_create_info[i].pQueuePriorities = priorities;
+    }
+
+    const ERL_NIF_TERM *features;
+
+    if (!enif_get_tuple(env, argv1[2], &arity, &features) || arity != 56)
+        return enif_make_badarg(env);
+
+    VkPhysicalDeviceFeatures device_features = {0};
+
+    device_features.robustBufferAccess = from_erlang_bool(features[1]);
+    device_features.fullDrawIndexUint32 = from_erlang_bool(features[2]);
+    device_features.imageCubeArray = from_erlang_bool(features[3]);
+    device_features.independentBlend = from_erlang_bool(features[4]);
+    device_features.geometryShader = from_erlang_bool(features[5]);
+    device_features.tessellationShader = from_erlang_bool(features[6]);
+    device_features.sampleRateShading = from_erlang_bool(features[7]);
+    device_features.dualSrcBlend = from_erlang_bool(features[8]);
+    device_features.logicOp = from_erlang_bool(features[9]);
+    device_features.multiDrawIndirect = from_erlang_bool(features[10]);
+    device_features.drawIndirectFirstInstance = from_erlang_bool(features[11]);
+    device_features.depthClamp = from_erlang_bool(features[12]);
+    device_features.depthBiasClamp = from_erlang_bool(features[13]);
+    device_features.fillModeNonSolid = from_erlang_bool(features[14]);
+    device_features.depthBounds = from_erlang_bool(features[15]);
+    device_features.wideLines = from_erlang_bool(features[16]);
+    device_features.largePoints = from_erlang_bool(features[17]);
+    device_features.alphaToOne = from_erlang_bool(features[18]);
+    device_features.multiViewport = from_erlang_bool(features[19]);
+    device_features.samplerAnisotropy = from_erlang_bool(features[20]);
+    device_features.textureCompressionETC2 = from_erlang_bool(features[21]);
+    device_features.textureCompressionASTC_LDR = from_erlang_bool(features[22]);
+    device_features.textureCompressionBC = from_erlang_bool(features[23]);
+    device_features.occlusionQueryPrecise = from_erlang_bool(features[24]);
+    device_features.pipelineStatisticsQuery = from_erlang_bool(features[25]);
+    device_features.vertexPipelineStoresAndAtomics = from_erlang_bool(features[26]);
+    device_features.fragmentStoresAndAtomics = from_erlang_bool(features[27]);
+    device_features.shaderTessellationAndGeometryPointSize = from_erlang_bool(features[28]);
+    device_features.shaderImageGatherExtended = from_erlang_bool(features[29]);
+    device_features.shaderStorageImageExtendedFormats = from_erlang_bool(features[30]);
+    device_features.shaderStorageImageMultisample = from_erlang_bool(features[31]);
+    device_features.shaderStorageImageReadWithoutFormat = from_erlang_bool(features[32]);
+    device_features.shaderStorageImageWriteWithoutFormat = from_erlang_bool(features[33]);
+    device_features.shaderUniformBufferArrayDynamicIndexing = from_erlang_bool(features[34]);
+    device_features.shaderSampledImageArrayDynamicIndexing = from_erlang_bool(features[35]);
+    device_features.shaderStorageBufferArrayDynamicIndexing = from_erlang_bool(features[36]);
+    device_features.shaderStorageImageArrayDynamicIndexing = from_erlang_bool(features[37]);
+    device_features.shaderClipDistance = from_erlang_bool(features[38]);
+    device_features.shaderCullDistance = from_erlang_bool(features[39]);
+    device_features.shaderFloat64 = from_erlang_bool(features[40]);
+    device_features.shaderInt64 = from_erlang_bool(features[41]);
+    device_features.shaderInt16 = from_erlang_bool(features[42]);
+    device_features.shaderResourceResidency = from_erlang_bool(features[43]);
+    device_features.shaderResourceMinLod = from_erlang_bool(features[44]);
+    device_features.sparseBinding = from_erlang_bool(features[45]);
+    device_features.sparseResidencyBuffer = from_erlang_bool(features[46]);
+    device_features.sparseResidencyImage2D = from_erlang_bool(features[47]);
+    device_features.sparseResidencyImage3D = from_erlang_bool(features[48]);
+    device_features.sparseResidency2Samples = from_erlang_bool(features[49]);
+    device_features.sparseResidency4Samples = from_erlang_bool(features[50]);
+    device_features.sparseResidency8Samples = from_erlang_bool(features[51]);
+    device_features.sparseResidency16Samples = from_erlang_bool(features[52]);
+    device_features.sparseResidencyAliased = from_erlang_bool(features[53]);
+    device_features.variableMultisampleRate = from_erlang_bool(features[54]);
+    device_features.inheritedQueries = from_erlang_bool(features[55]);
+
+    VkDeviceCreateInfo create_info = {0};
+    create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+    create_info.queueCreateInfoCount = queue_info_count;
+    create_info.pQueueCreateInfos = queue_create_info;
+    create_info.pEnabledFeatures = &device_features;
+
+    logic_dev = enif_alloc_resource(vk_resources[VK_LOGI_DEV].resource_type, sizeof(VkDevice));
+
+    if (logic_dev && (ret_code = vkCreateDevice(*device, &create_info, NULL, logic_dev) == VK_SUCCESS)) {
+        ERL_NIF_TERM term = enif_make_resource(env, logic_dev);
+        enif_release_resource(logic_dev);
+        return TUPLE_OK(term);
+    } else switch (ret_code) {
+        case VK_ERROR_OUT_OF_HOST_MEMORY:
+            return TUPLE_ERROR(ATOM_OUT_OF_HOST_MEM);
+        case VK_ERROR_OUT_OF_DEVICE_MEMORY:
+            return TUPLE_ERROR(ATOM_OUT_OF_DEVICE_MEM);
+        case VK_ERROR_INITIALIZATION_FAILED:
+            return TUPLE_ERROR(ATOM_INIT_FAILED);
+        case VK_ERROR_EXTENSION_NOT_PRESENT:
+            return TUPLE_ERROR(ATOM_EXTEN_NOT_PRESENT);
+        case VK_ERROR_FEATURE_NOT_PRESENT:
+            return TUPLE_ERROR(ATOM_FEATURE_NOT_PRESENT);
+        case VK_ERROR_TOO_MANY_OBJECTS:
+            return TUPLE_ERROR(ATOM_TOO_MANY_OBJECTS);
+        case VK_ERROR_DEVICE_LOST:
+            return TUPLE_ERROR(ATOM_DEVICE_LOST);
+        default:
+            return ATOM_NIF_ERROR;
+    }
 }
 
 ENIF(destroy_device_nif) {
