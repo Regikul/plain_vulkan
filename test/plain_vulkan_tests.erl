@@ -12,14 +12,15 @@ flow_test() ->
   {ok, [PhysDevice | _ ]} = plain_vulkan:enumerate_physical_devices(Instance),
   _DeviceProperties = plain_vulkan:get_physical_device_properties(PhysDevice),
   {ok, QueueFamilyProperties} = plain_vulkan:get_physical_device_queue_family_properties(PhysDevice),
-  ComputeInfo = #vk_device_queue_create_info{} = lists:foldl(fun find_compute_queue/2, null, QueueFamilyProperties),
-  DeviceCreateInfo = #vk_device_create_info{queue_create_infos = [ComputeInfo]
+  ComputeQueueInfo = lists:foldl(fun find_compute_queue/2, null, QueueFamilyProperties),
+  #vk_device_queue_create_info{queue_family_index = ComputeFamily} = ComputeQueueInfo,
+  DeviceCreateInfo = #vk_device_create_info{queue_create_infos = [ComputeQueueInfo]
                                             ,enabled_features = #vk_physical_device_features{}
                                            },
   {ok, Device} = plain_vulkan:create_device(PhysDevice, DeviceCreateInfo),
+  _ComputeQueue = plain_vulkan:get_device_queue(Device, ComputeFamily, 0),
 
   plain_vulkan:destroy_device(Device),
-
   ok = plain_vulkan:destroy_instance(Instance).
 
 find_compute_queue(#vk_queue_family_properties{queueFlags = Flags, familyIndex = Index}, null) ->
