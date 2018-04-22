@@ -612,10 +612,8 @@ ENIF(create_command_pool_nif) {
 
     info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
     info.pNext = NULL;
-    enif_get_ulong(env, record[1], &mem);
-    info.flags = mem;
-    enif_get_ulong(env, record[2], &mem);
-    info.queueFamilyIndex = mem;
+    enif_get_uint(env, record[1], &info.flags);
+    enif_get_uint(env, record[2], &info.queueFamilyIndex);
 
     VkCommandPool *pool = enif_alloc_resource(vk_resources[VK_COMMAND_POOL].resource_type, sizeof(VkCommandPool));
 
