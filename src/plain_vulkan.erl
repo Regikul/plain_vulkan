@@ -25,6 +25,7 @@
 ]).
 
 -type vk_instance() :: reference().
+-type vk_device() :: reference().
 -type vk_physical_device() :: reference().
 -type vk_physical_devices() :: [vk_physical_device()].
 -type vk_enumerate_dev_ret() :: {ok, vk_physical_devices()}
@@ -38,6 +39,7 @@
                             | init_failed.
 
 -export_type([
+  vk_device/0,
   vk_instance/0,
   vk_physical_device/0,
   vk_physical_devices/0,
@@ -101,10 +103,10 @@ get_physical_device_features(_Device) -> erlang:nif_error({error, not_loaded}).
 -spec get_physical_device_queue_family_count(vk_physical_device()) -> non_neg_integer().
 get_physical_device_queue_family_count(_Device) -> erlang:nif_error({error, not_loaded}).
 
--spec get_physical_device_queue_family_properties(vk_physical_device(), pos_integer()) -> term().
+-spec get_physical_device_queue_family_properties(vk_physical_device(), pos_integer()) -> {ok, [vk_queue_family_properties()]}.
 get_physical_device_queue_family_properties(_Device, _Count) -> erlang:nif_error({error, not_loaded}).
 
--spec get_physical_device_queue_family_properties(vk_physical_device()) -> term().
+-spec get_physical_device_queue_family_properties(vk_physical_device()) -> {ok, [vk_queue_family_properties()]}.
 get_physical_device_queue_family_properties(Device) ->
   case get_physical_device_queue_family_count(Device) of
     {ok, Count} -> case get_physical_device_queue_family_properties(Device, Count) of
@@ -114,7 +116,7 @@ get_physical_device_queue_family_properties(Device) ->
     _Else -> _Else
   end.
 
--spec create_device(vk_physical_device(), vk_device_create_info()) -> term().
+-spec create_device(vk_physical_device(), vk_device_create_info()) -> {ok, vk_device()}.
 create_device(_PhysDev, _CreateInfo) -> erlang:nif_error({error, not_loaded}).
 
 -spec destroy_device(term()) -> 'ok'.
