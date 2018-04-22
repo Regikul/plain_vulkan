@@ -113,7 +113,7 @@ get_physical_device_queue_family_properties_nif(_Device, _Count) -> erlang:nif_e
 -spec get_physical_device_queue_family_properties(vk_physical_device(), pos_integer()) -> {ok, [vk_queue_family_properties()]}.
 get_physical_device_queue_family_properties(Device, Count) ->
   case get_physical_device_queue_family_properties_nif(Device, Count) of
-    {ok, Props} -> lists:map(fun queue_family_props_bits_to_list/1, Props);
+    {ok, Props} -> {ok, lists:map(fun queue_family_props_bits_to_list/1, Props)};
     Else -> Else
   end.
 
@@ -147,12 +147,24 @@ create_device(_PhysDev, _CreateInfo) -> erlang:nif_error({error, not_loaded}).
 -spec destroy_device(term()) -> 'ok'.
 destroy_device(_LogicDev) -> erlang:nif_error({error, not_loaded}).
 
--spec get_device_queue(vk_device(), pos_integer(), pos_integer()) -> {ok, vk_queue()}.
+-spec get_device_queue(vk_device(), pos_integer(), pos_integer()) -> vk_queue().
 get_device_queue(_Dev, _QueueFamilyIndex, _QueueIndex) -> erlang:nif_error({error, not_loaded}).
 
 -spec create_command_pool(vk_device(), vk_command_pool_create_info()) -> either(vk_command_pool(), atom()).
-create_command_pool(_Dev, _CreateInfo) -> erlang:nif_error({error, not_loaded}).
+create_command_pool(Dev, #vk_command_pool_create_info{flags = ListFlags} = CreateInfo) ->
+  TransientBit = case lists:member('transient', ListFlags) of
+                   'true' -> 16#1;
+                   'false' -> 0
+                 end,
+  ResetBit = case lists:member('reset', ListFlags) of
+               'true' -> 16#2;
+               'false' -> 0
+             end,
+  create_command_pool_nif(Dev, CreateInfo#vk_command_pool_create_info{flags = TransientBit + ResetBit}).
 
+
+-spec create_command_pool_nif(vk_device(), vk_command_pool_create_info()) -> either(vk_command_pool(), atom()).
+create_command_pool_nif(_Dev, _CreateInfo) -> erlang:nif_error({error, not_loaded}).
 %%====================================================================
 %% Internal functions
 %%====================================================================
