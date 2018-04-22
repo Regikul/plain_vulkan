@@ -546,7 +546,14 @@ ENIF(create_device_nif) {
 }
 
 ENIF(destroy_device_nif) {
-    return enif_make_tuple(env, 2, ATOM_ERROR, ATOM("not_implemented"));
+    VkDevice *logic_dev = NULL;
+
+    if (enif_get_resource(env, argv[0], vk_resources[VK_LOGI_DEV].resource_type, (void **)&logic_dev) == 0)
+        return enif_make_badarg(env);
+
+    vkDestroyDevice(*logic_dev, NULL);
+
+    return ATOM_OK;
 }
 
 ENIF(get_device_queue_nif) {
