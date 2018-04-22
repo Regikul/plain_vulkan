@@ -103,8 +103,29 @@ get_physical_device_features(_Device) -> erlang:nif_error({error, not_loaded}).
 -spec get_physical_device_queue_family_count(vk_physical_device()) -> non_neg_integer().
 get_physical_device_queue_family_count(_Device) -> erlang:nif_error({error, not_loaded}).
 
+-spec get_physical_device_queue_family_properties_nif(vk_physical_device(), pos_integer()) -> {ok, [vk_queue_family_properties()]}.
+get_physical_device_queue_family_properties_nif(_Device, _Count) -> erlang:nif_error({error, not_loaded}).
+
 -spec get_physical_device_queue_family_properties(vk_physical_device(), pos_integer()) -> {ok, [vk_queue_family_properties()]}.
-get_physical_device_queue_family_properties(_Device, _Count) -> erlang:nif_error({error, not_loaded}).
+get_physical_device_queue_family_properties(Device, Count) ->
+  case get_physical_device_queue_family_properties_nif(Device, Count) of
+    {ok, Props} -> lists:map(fun queue_family_props_bits_to_list/1, Props);
+    Else -> Else
+  end.
+
+-spec queue_family_props_bits_to_list(vk_queue_family_properties()) -> vk_queue_family_properties().
+queue_family_props_bits_to_list(#vk_queue_family_properties{queueFlags = IntFlags} = Props) ->
+  Graphics = if_bit(IntFlags, 16#1, 'graphics'),
+  Compute = if_bit(IntFlags, 16#2, 'compute'),
+  Transfer = if_bit(IntFlags, 16#4, 'transfer'),
+  Sparse = if_bit(IntFlags, 16#8, 'sparse_binding'),
+  Props#vk_queue_family_properties{queueFlags = lists:flatten([Graphics, Compute, Transfer, Sparse])}.
+
+if_bit(Val, Bit, Success) ->
+  case Val band Bit of
+    Bit -> [Success];
+    _Else -> []
+  end.
 
 -spec get_physical_device_queue_family_properties(vk_physical_device()) -> {ok, [vk_queue_family_properties()]}.
 get_physical_device_queue_family_properties(Device) ->

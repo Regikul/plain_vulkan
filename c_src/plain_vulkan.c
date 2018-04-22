@@ -373,17 +373,8 @@ ENIF(get_physical_device_queue_family_properties_nif) {
                                                                          , enif_make_int(env, ce->depth)
                                                                          );
         ERL_NIF_TERM flags = enif_make_list(env, 0);
-        if (c->queueFlags & VK_QUEUE_GRAPHICS_BIT)
-            flags = enif_make_list_cell(env, ATOM("graphics"), flags);
-        if (c->queueFlags & VK_QUEUE_COMPUTE_BIT)
-            flags = enif_make_list_cell(env, ATOM("compute"), flags);
-        if (c->queueFlags & VK_QUEUE_TRANSFER_BIT)
-            flags = enif_make_list_cell(env, ATOM("transfer"), flags);
-        if (c->queueFlags & VK_QUEUE_SPARSE_BINDING_BIT)
-            flags = enif_make_list_cell(env, ATOM("sparse_bindigng"), flags);
-
         res[i] = enif_make_tuple(env, 6, ATOM("vk_queue_family_properties")
-                                       , flags
+                                       , enif_make_int(env, c->queueFlags)
                                        , enif_make_int(env, c->queueCount)
                                        , enif_make_int(env, c->timestampValidBits)
                                        , minImageTransferGranularity
@@ -626,7 +617,7 @@ static ErlNifFunc nif_funcs[] = {
   {"get_physical_device_properties", 1, get_physical_device_properties_nif},
   {"get_physical_device_features", 1, get_physical_device_features_nif},
   {"get_physical_device_queue_family_count", 1, get_physical_device_queue_family_count_nif},
-  {"get_physical_device_queue_family_properties", 2, get_physical_device_queue_family_properties_nif},
+  {"get_physical_device_queue_family_properties_nif", 2, get_physical_device_queue_family_properties_nif},
   {"create_device", 2, create_device_nif},
   {"destroy_device", 1, destroy_device_nif},
   {"get_device_queue", 3, get_device_queue_nif},
