@@ -405,17 +405,21 @@ ENIF(create_device_nif) {
     if (!enif_get_tuple(env, argv[1], &arity, &argv1) || !enif_is_identical(argv1[0], ATOM("vk_device_create_info")))
         return enif_make_badarg(env);
 
-    if (!enif_is_list(env, argv1[1]))
+    ERL_NIF_TERM queue_info_list = argv1[1];
+
+    if (!enif_is_list(env, queue_info_list))
         return enif_make_badarg(env);
 
     VkResult ret_code;
     uint32_t queue_info_count = 0;
-    enif_get_list_length(env, argv1[1], &queue_info_count);
+    enif_get_list_length(env, queue_info_list, &queue_info_count);
     VkDeviceQueueCreateInfo queue_create_info[queue_info_count];
 
     for (unsigned i = 0; i < queue_info_count; i++) {
         const ERL_NIF_TERM *device_queue_create_info;
-        if (!enif_get_tuple(env, argv1[1], &arity, &device_queue_create_info)
+        ERL_NIF_TERM queue_info_list_head;
+        enif_get_list_cell(env, queue_info_list, &queue_info_list_head, &queue_info_list);
+        if (!enif_get_tuple(env, queue_info_list_head, &arity, &device_queue_create_info)
             || !enif_is_identical(device_queue_create_info[0], ATOM("vk_device_queue_create_info"))
            )
             return enif_make_badarg(env);
