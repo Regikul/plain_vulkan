@@ -27,6 +27,7 @@
 -type vk_instance() :: reference().
 -type vk_device() :: reference().
 -type vk_queue() :: reference().
+-type vk_command_pool() :: reference().
 -type vk_physical_device() :: reference().
 -type vk_physical_devices() :: [vk_physical_device()].
 -type vk_enumerate_dev_ret() :: {ok, vk_physical_devices()}
@@ -43,6 +44,7 @@
   vk_device/0,
   vk_instance/0,
   vk_queue/0,
+  vk_command_pool/0,
   vk_physical_device/0,
   vk_physical_devices/0,
   vk_enumerate_dev_ret/0,
@@ -55,7 +57,7 @@
 %% API functions
 %%====================================================================
 
--spec create_instance(string()) -> {ok, vk_instance()} | error.
+-spec create_instance(string()) -> either(vk_instance(), atom()).
 create_instance(_Name) -> erlang:nif_error({error, not_loaded}).
 
 -spec destroy_instance(vk_instance()) -> ok.
@@ -139,16 +141,16 @@ get_physical_device_queue_family_properties(Device) ->
     _Else -> _Else
   end.
 
--spec create_device(vk_physical_device(), vk_device_create_info()) -> {ok, vk_device()}.
+-spec create_device(vk_physical_device(), vk_device_create_info()) -> either(vk_device(), atom()).
 create_device(_PhysDev, _CreateInfo) -> erlang:nif_error({error, not_loaded}).
 
 -spec destroy_device(term()) -> 'ok'.
 destroy_device(_LogicDev) -> erlang:nif_error({error, not_loaded}).
 
--spec get_device_queue(vk_device(), pos_integer(), pos_integer()) -> vk_queue().
+-spec get_device_queue(vk_device(), pos_integer(), pos_integer()) -> {ok, vk_queue()}.
 get_device_queue(_Dev, _QueueFamilyIndex, _QueueIndex) -> erlang:nif_error({error, not_loaded}).
 
--spec create_command_pool(vk_device(), term()) -> term().
+-spec create_command_pool(vk_device(), vk_command_pool_create_info()) -> either(vk_command_pool(), atom()).
 create_command_pool(_Dev, _CreateInfo) -> erlang:nif_error({error, not_loaded}).
 
 %%====================================================================

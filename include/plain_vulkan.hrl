@@ -8,6 +8,7 @@
 
 -type terminate_reason() :: 'normal' | 'shutdown' | {'shutdown', term()} | term().
 -type child_type() :: 'worker' | 'supervisor'.
+-type either(Ok, Error) :: {ok, Ok} | {error, Error}.
 
 %% Don't know if we should implement this
 -record(vk_physical_device_limits, {}).
@@ -117,5 +118,11 @@
   enabled_features :: vk_physical_device_features()
 }).
 -type vk_device_create_info() :: #vk_device_create_info{}.
+
+-record(vk_command_pool_create_info, {
+  flags = [] :: list(),
+  queue_family_index :: non_neg_integer()
+}).
+-type vk_command_pool_create_info() :: #vk_command_pool_create_info{}.
 
 -endif.
