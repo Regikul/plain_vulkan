@@ -38,6 +38,7 @@ typedef enum {
     VK_DEVICE,
     VK_QUEUE,
     VK_COMMAND_POOL,
+    VK_BUFFER,
 
     VK_RESOURCE_COUNT
 } vk_resource_enumeration;
@@ -54,7 +55,8 @@ vk_resource_definition vk_resources[] = {
     {"VK_LOGI_DEV", NULL},
     {"VK_DEVICE", NULL},
     {"VK_QUEUE", NULL},
-    {"VK_COMMAND_POOL", NULL}
+    {"VK_COMMAND_POOL", NULL},
+    {"VK_BUFFER", NULL}
 };
 
 static int open_resources(ErlNifEnv* env) {
@@ -574,7 +576,6 @@ ENIF(destroy_device_nif) {
 ENIF(get_device_queue_nif) {
     VkDevice *device = NULL;
     uint32_t queueFamilyIndex, queueIndex;
-    unsigned long tmp;
     VkQueue *queue;
 
     if (!enif_get_resource(env, argv[0], vk_resources[VK_LOGI_DEV].resource_type, (void **)&device))
@@ -598,7 +599,6 @@ ENIF(get_device_queue_nif) {
 ENIF(create_command_pool_nif) {
     VkDevice *device = NULL;
     int arity = 0;
-    unsigned long mem;
     const ERL_NIF_TERM *record;
     VkResult result;
 
@@ -624,9 +624,9 @@ ENIF(create_command_pool_nif) {
     VkCommandPool *pool = enif_alloc_resource(vk_resources[VK_COMMAND_POOL].resource_type, sizeof(VkCommandPool));
 
     if (pool && ((result = vkCreateCommandPool(*device, &info, NULL, pool)) == VK_SUCCESS)) {
-            ERL_NIF_TERM term = enif_make_resource(env, pool);
-            enif_release_resource(pool);
-            return TUPLE_OK(term);
+        ERL_NIF_TERM term = enif_make_resource(env, pool);
+        enif_release_resource(pool);
+        return TUPLE_OK(term);
     } else switch (result) {
         case VK_ERROR_OUT_OF_HOST_MEMORY:
             return TUPLE_ERROR(ATOM_OUT_OF_HOST_MEM);
@@ -652,6 +652,75 @@ ENIF(destroy_command_pool_nif) {
     return ATOM_OK;
 }
 
+ENIF(create_buffer_nif) {
+    VkDevice *device;
+    const ERL_NIF_TERM *record;
+    int arity = 0;
+    VkBufferCreateInfo create_info = {0};
+    VkResult result;
+    VkBuffer *buffer;
+
+    if (!enif_get_resource(env, argv[0], vk_resources[VK_LOGI_DEV].resource_type, (void **)&device))
+        return enif_make_badarg(env);
+
+    if (!enif_get_tuple(env, argv[1], &arity, &record) ||
+        !enif_is_identical(record[0], ATOM("vk_buffer_create_info"))){
+
+        return enif_make_badarg(env);
+    }
+
+    create_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    if (!enif_get_uint(env, record[1], &create_info.flags))
+        return enif_make_badarg(env);
+    if (!enif_get_uint64(env, record[2], &create_info.size))
+        return enif_make_badarg(env);
+    if (!enif_get_uint(env, record[3], &create_info.usage))
+        return enif_make_badarg(env);
+    if (!enif_get_uint(env, record[4], &create_info.sharingMode))
+        return enif_make_badarg(env);
+    if (!enif_get_list_length(env, record[5], &create_info.queueFamilyIndexCount))
+        return enif_make_badarg(env);
+
+    uint32_t queueFamilyIndices[create_info.queueFamilyIndexCount];
+    ERL_NIF_TERM list = record[5];
+    ERL_NIF_TERM head;
+    for (unsigned i = 0; enif_get_list_cell(env, list, &head, &list); i++) {
+        if (!enif_get_uint(env, head, queueFamilyIndices + i))
+            return enif_make_badarg(env);
+    }
+    create_info.pQueueFamilyIndices = queueFamilyIndices;
+
+    buffer = enif_alloc_resource(vk_resources[VK_BUFFER].resource_type, sizeof(VkBuffer));
+
+    if (buffer && ((result = vkCreateBuffer(*device, &create_info, NULL, buffer)) ==  VK_SUCCESS)) {
+        ERL_NIF_TERM term = enif_make_resource(env, buffer);
+        enif_release_resource(buffer);
+        return TUPLE_OK(term);
+    } else switch (result) {
+        case VK_ERROR_OUT_OF_HOST_MEMORY:
+            return TUPLE_ERROR(ATOM_OUT_OF_HOST_MEM);
+        case VK_ERROR_OUT_OF_DEVICE_MEMORY:
+            return TUPLE_ERROR(ATOM_OUT_OF_DEVICE_MEM);
+        default:
+            return ATOM_NIF_ERROR;
+    }
+}
+
+ENIF(destroy_buffer_nif) {
+    VkDevice *device;
+    VkBuffer *buffer;
+
+    if (!enif_get_resource(env, argv[0], vk_resources[VK_LOGI_DEV].resource_type, (void **)&device))
+        return enif_make_badarg(env);
+
+    if (!enif_get_resource(env, argv[1], vk_resources[VK_BUFFER].resource_type, (void **)&buffer))
+        return enif_make_badarg(env);
+
+    vkDestroyBuffer(*device, *buffer, NULL);
+
+    return ATOM_OK;
+}
+
 static ErlNifFunc nif_funcs[] = {
   {"create_instance", 1, create_instance_nif},
   {"destroy_instance", 1, destroy_instance_nif},
@@ -668,7 +737,9 @@ static ErlNifFunc nif_funcs[] = {
   {"destroy_device", 1, destroy_device_nif},
   {"get_device_queue", 3, get_device_queue_nif},
   {"create_command_pool_nif", 2, create_command_pool_nif},
-  {"destroy_command_pool", 2, destroy_command_pool_nif}
+  {"destroy_command_pool", 2, destroy_command_pool_nif},
+  {"create_buffer_nif", 2, create_buffer_nif},
+  {"destroy_buffer", 2, destroy_buffer_nif}
 };
 
 ERL_NIF_INIT(plain_vulkan, nif_funcs, &load, NULL, &upgrade, NULL);

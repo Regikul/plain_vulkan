@@ -125,4 +125,13 @@
 }).
 -type vk_command_pool_create_info() :: #vk_command_pool_create_info{}.
 
+-record(vk_buffer_create_info, {
+  flags = [] :: list(),
+  size :: pos_integer(),
+  usage = [] :: list(),
+  sharing_mode = [] :: list(),
+  queue_family_indices = [] :: list(non_neg_integer())
+}).
+-type vk_buffer_create_info() :: #vk_buffer_create_info{}.
+
 -endif.
