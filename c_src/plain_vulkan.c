@@ -644,10 +644,10 @@ ENIF(destroy_command_pool_nif) {
     if (!enif_get_resource(env, argv[0], vk_resources[VK_LOGI_DEV].resource_type, (void **)&device))
         return enif_make_badarg(env);
 
-    if (!enif_get_resource(env, argv[1], vk_resources[VK_COMMAND_POOL].resource_type, (void**)pool))
+    if (!enif_get_resource(env, argv[1], vk_resources[VK_COMMAND_POOL].resource_type, (void**)&pool))
         return enif_make_badarg(env);
 
-    vkDestroyCommandPool(*device, pool, NULL);
+    vkDestroyCommandPool(*device, *pool, NULL);
 
     return ATOM_OK;
 }
