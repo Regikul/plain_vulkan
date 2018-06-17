@@ -30,10 +30,6 @@
   create_buffer/2, destroy_buffer/2
 ]).
 
-
-%% hide unised warning
--export([id/1]).
-
 -type vk_instance() :: reference().
 -type vk_device() :: reference().
 -type vk_queue() :: reference().
@@ -130,8 +126,8 @@ get_physical_device_memory_properties(Device) ->
   #vk_physical_device_memory_properties{memory_types = MemoryTypes
                                         ,memory_heaps = MemoryHeaps
                                        } = get_physical_device_memory_properties_nif(Device),
-  MemTypes = lists:map(fun id/1, MemoryTypes),
-  MemHeaps = lists:map(fun id/1, MemoryHeaps),
+  MemTypes = lists:map(fun plain_vulkan_util:id/1, MemoryTypes),
+  MemHeaps = lists:map(fun plain_vulkan_util:id/1, MemoryHeaps),
   #vk_physical_device_memory_properties{memory_heaps = MemHeaps, memory_types = MemTypes}.
 
 -spec get_physical_device_queue_family_properties(vk_physical_device(), pos_integer()) -> {ok, [vk_queue_family_properties()]}.
@@ -141,19 +137,18 @@ get_physical_device_queue_family_properties(Device, Count) ->
     Else -> Else
   end.
 
+-spec queue_family_properties_flags() -> proplists:proplist().
+queue_family_properties_flags() ->
+  [{graphics, 16#1}
+   ,{compute, 16#2}
+   ,{transfer, 16#4}
+   ,{sparse_binding, 16#8}
+  ].
+
 -spec queue_family_props_bits_to_list(vk_queue_family_properties()) -> vk_queue_family_properties().
 queue_family_props_bits_to_list(#vk_queue_family_properties{queueFlags = IntFlags} = Props) ->
-  Graphics = if_bit(IntFlags, 16#1, 'graphics'),
-  Compute = if_bit(IntFlags, 16#2, 'compute'),
-  Transfer = if_bit(IntFlags, 16#4, 'transfer'),
-  Sparse = if_bit(IntFlags, 16#8, 'sparse_binding'),
-  Props#vk_queue_family_properties{queueFlags = lists:flatten([Graphics, Compute, Transfer, Sparse])}.
-
-if_bit(Val, Bit, Success) ->
-  case Val band Bit of
-    Bit -> [Success];
-    _Else -> []
-  end.
+  ListFlags = plain_vulkan_util:unfold_flags(IntFlags, queue_family_properties_flags()),
+  Props#vk_queue_family_properties{queueFlags = ListFlags}.
 
 -spec get_physical_device_queue_family_properties(vk_physical_device()) -> {ok, [vk_queue_family_properties()]}.
 get_physical_device_queue_family_properties(Device) ->
@@ -174,10 +169,15 @@ destroy_device(_LogicDev) -> erlang:nif_error({error, not_loaded}).
 -spec get_device_queue(vk_device(), pos_integer(), pos_integer()) -> vk_queue().
 get_device_queue(_Dev, _QueueFamilyIndex, _QueueIndex) -> erlang:nif_error({error, not_loaded}).
 
+-spec command_pool_flags() -> proplists:proplist().
+command_pool_flags() ->
+  [{transient, 2#01}
+   ,{reset, 2#10}
+  ].
+
 -spec create_command_pool(vk_device(), vk_command_pool_create_info()) -> either(vk_command_pool(), atom()).
 create_command_pool(Dev, #vk_command_pool_create_info{flags = ListFlags} = CreateInfo) ->
-  IntFlags0 = if_flag('transient', ListFlags, 16#1, 0),
-  IntFlags = if_flag('reset', ListFlags, 16#2, IntFlags0),
+  IntFlags = plain_vulkan_util:fold_flags(ListFlags, command_pool_flags()),
   create_command_pool_nif(Dev, CreateInfo#vk_command_pool_create_info{flags = IntFlags}).
 
 -spec create_command_pool_nif(vk_device(), vk_command_pool_create_info()) -> either(vk_command_pool(), atom()).
@@ -186,30 +186,37 @@ create_command_pool_nif(_Dev, _CreateInfo) -> erlang:nif_error({error, not_loade
 -spec destroy_command_pool(vk_device(), vk_command_pool()) -> ok.
 destroy_command_pool(_Device, _Pool) -> erlang:nif_error({error, not_loaded}).
 
-if_flag(Flag, Flags, Bit, Acc) ->
-  case lists:member(Flag, Flags) of
-    'true' -> Acc + Bit;
-    'false' -> Acc
-  end.
+-spec create_buffer_flags() -> proplists:proplist().
+create_buffer_flags() ->
+  [{sparse_binding, 16#1}
+   ,{sparse_residency, 16#2}
+   ,{sparse_aliased, 16#4}
+   ,{protected, 16#8}
+  ].
+
+-spec create_buffer_usage_flags() -> proplists:proplist().
+create_buffer_usage_flags() ->
+  [{transfer_src, 16#001}
+   ,{transfer_dst, 16#002}
+   ,{uniform_texel_buffer, 16#004}
+   ,{storage_texel_buffer, 16#008}
+   ,{uniform_buffer, 16#010}
+   ,{storage_buffer, 16#020}
+   ,{index_buffer, 16#040}
+   ,{vertex_buffer, 16#080}
+   ,{indirect_buffer, 16#100}
+  ].
 
 -spec create_buffer(vk_device(), vk_buffer_create_info()) -> either(vk_buffer(), atom()).
 create_buffer(Device, #vk_buffer_create_info{flags = ListFlags, usage = UsageFlags, sharing_mode = Mode} = CreateInfo) ->
-  IntFlags0 = if_flag('sparse_binding', ListFlags, 16#1, 0),
-  IntFlags1 = if_flag('sparse_residency', ListFlags, 16#2, IntFlags0),
-  IntFlags2 = if_flag('sparse_aliased', ListFlags, 16#4, IntFlags1),
-  IntFlags = if_flag('protected', ListFlags, 16#8, IntFlags2),
+  IntFlags = plain_vulkan_util:fold_flags(ListFlags, create_buffer_flags()),
 
-  IntUsage0 = if_flag('transfer_src', UsageFlags, 16#001, 0),
-  IntUsage1 = if_flag('transfer_dst', UsageFlags, 16#002, IntUsage0),
-  IntUsage2 = if_flag('uniform_texel_buffer', UsageFlags, 16#004, IntUsage1),
-  IntUsage3 = if_flag('storage_texel_buffer', UsageFlags, 16#008, IntUsage2),
-  IntUsage4 = if_flag('uniform_buffer', UsageFlags, 16#010, IntUsage3),
-  IntUsage5 = if_flag('storage_buffer', UsageFlags, 16#020, IntUsage4),
-  IntUsage6 = if_flag('index_buffer', UsageFlags, 16#040, IntUsage5),
-  IntUsage7 = if_flag('vertex_buffer', UsageFlags, 16#080, IntUsage6),
-  IntUsage  = if_flag('indirect_buffer', UsageFlags, 16#100, IntUsage7),
+  IntUsage = plain_vulkan_util:fold_flags(UsageFlags, create_buffer_usage_flags()),
 
-  SharingMode = if_flag('concurrent', Mode, 1, 0),
+  SharingMode = case Mode of
+                  [concurrent] -> 1;
+                  _ -> 0
+                end,
   create_buffer_nif(Device, CreateInfo#vk_buffer_create_info{flags = IntFlags, usage = IntUsage, sharing_mode = SharingMode}).
 
 
@@ -222,8 +229,6 @@ destroy_buffer(_Device, _Buffer) -> erlang:nif_error({error, not_loaded}).
 %%====================================================================
 %% Internal functions
 %%====================================================================
-
-id(X) -> X.
 
 -spec init() -> ok.
 init() ->
