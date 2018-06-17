@@ -263,7 +263,7 @@ get_buffer_memory_requirements(Device, Buffer) ->
 -spec memory_requirements_flags() -> proplists:proplist().
 memory_requirements_flags() -> memory_types_flags().
 
--spec allocate_memory(vk_device(), vk_memory_allocate_info()) -> vk_device_memory().
+-spec allocate_memory(vk_device(), vk_memory_allocate_info()) -> either(vk_device_memory(), atom()).
 allocate_memory(_Device, _AllocateInfo) -> erlang:nif_error({error, not_loaded}).
 
 -spec free_memory(vk_device(), vk_device_memory()) -> ok.

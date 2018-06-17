@@ -11,7 +11,6 @@ flow_test() ->
        end,
   {ok, [PhysDevice | _ ]} = plain_vulkan:enumerate_physical_devices(Instance),
   _DeviceProperties = plain_vulkan:get_physical_device_properties(PhysDevice),
-  _DeviceMemoryTypes = plain_vulkan:get_physical_device_memory_properties(PhysDevice),
   {ok, QueueFamilyProperties} = plain_vulkan:get_physical_device_queue_family_properties(PhysDevice),
   ComputeQueueInfo = lists:foldl(fun find_compute_queue/2, null, QueueFamilyProperties),
   #vk_device_queue_create_info{queue_family_index = ComputeFamily} = ComputeQueueInfo,
@@ -29,8 +28,19 @@ flow_test() ->
                                       ,usage = [transfer_src, transfer_dst]
                                      },
   {ok, Buffer} = plain_vulkan:create_buffer(Device, BufferInfo),
-  _MemReqs = plain_vulkan:get_buffer_memory_requirements(Device, Buffer),
+  #vk_memory_requirements{size = MemReqSize
+                          ,memory_type_flags = MemTypeFlags
+                         } = plain_vulkan:get_buffer_memory_requirements(Device, Buffer),
+  DeviceMemoryTypes = plain_vulkan:get_physical_device_memory_properties(PhysDevice),
 
+  ?debugFmt("required memory is ~pb of type ~p~n", [MemReqSize, MemTypeFlags]),
+  ?debugFmt("found memory types on this device: ~p~n", [DeviceMemoryTypes]),
+
+  AllocInfo = #vk_memory_allocate_info{size = MemReqSize, memory_type = mem_type}, %% here I lost with empty head
+
+  {ok, Memory} = plain_vulkan:allocate_memory(Device, AllocInfo),
+
+  ok = plain_vulkan:free_memory(Device, Memory),
   ok = plain_vulkan:destroy_buffer(Device, Buffer),
   ok = plain_vulkan:destroy_command_pool(Device, CommandPool),
   ok = plain_vulkan:destroy_device(Device),
