@@ -27,7 +27,9 @@
 
   create_command_pool/2, destroy_command_pool/2,
 
-  create_buffer/2, destroy_buffer/2, get_buffer_memory_requirements/2
+  create_buffer/2, destroy_buffer/2, get_buffer_memory_requirements/2,
+
+  allocate_memory/2
 ]).
 
 -type vk_instance() :: reference().
@@ -35,6 +37,7 @@
 -type vk_queue() :: reference().
 -type vk_buffer() :: reference().
 -type vk_command_pool() :: reference().
+-type vk_device_memory() :: reference().
 -type vk_physical_device() :: reference().
 -type vk_physical_devices() :: [vk_physical_device()].
 -type vk_enumerate_dev_ret() :: {ok, vk_physical_devices()}
@@ -259,6 +262,9 @@ get_buffer_memory_requirements(Device, Buffer) ->
 
 -spec memory_requirements_flags() -> proplists:proplist().
 memory_requirements_flags() -> memory_types_flags().
+
+-spec allocate_memory(vk_device(), vk_memory_allocate_info()) -> vk_device_memory().
+allocate_memory(_Device, _AllocateInfo) -> erlang:nif_error({error, not_loaded}).
 
 %%====================================================================
 %% Internal functions

@@ -149,4 +149,10 @@
 }).
 -type vk_memory_requirements() :: #vk_memory_requirements{}.
 
+-record(vk_memory_allocate_info, {
+  size :: pos_integer(),
+  memory_type :: non_neg_integer()
+}).
+-type vk_memory_allocate_info() :: #vk_memory_allocate_info{}.
+
 -endif.

@@ -39,6 +39,7 @@ typedef enum {
     VK_QUEUE,
     VK_COMMAND_POOL,
     VK_BUFFER,
+    VK_DEVICE_MEMORY,
 
     VK_RESOURCE_COUNT
 } vk_resource_enumeration;
@@ -56,7 +57,8 @@ vk_resource_definition vk_resources[] = {
     {"VK_DEVICE", NULL},
     {"VK_QUEUE", NULL},
     {"VK_COMMAND_POOL", NULL},
-    {"VK_BUFFER", NULL}
+    {"VK_BUFFER", NULL},
+    {"VK_DEVICE_MEMORY", NULL}
 };
 
 static int open_resources(ErlNifEnv* env) {
@@ -783,6 +785,50 @@ ENIF(get_buffer_memory_requirements_nif) {
 
 }
 
+ENIF(allocate_memory_nif) {
+    VkDevice *device;
+    VkMemoryAllocateInfo allocate_info = {0};
+    const ERL_NIF_TERM *record;
+    int arity = 0;
+    VkDeviceSize size;
+    uint32_t memoryTypeIndex;
+    VkResult ret_code;
+    VkDeviceMemory *device_memory;
+
+    if (!enif_get_resource(env, argv[0], vk_resources[VK_LOGI_DEV].resource_type, (void **)&device))
+        return enif_make_badarg(env);
+
+    if (!enif_get_tuple(env, argv[1], &arity, &record) ||
+        !enif_is_identical(record[0], ATOM("vk_memory_allocate_info"))){
+
+        return enif_make_badarg(env);
+    }
+    if (!enif_get_ulong(env, record[1], &size))
+        return enif_make_badarg(env);
+    if (!enif_get_uint(env, record[2], &memoryTypeIndex))
+        return enif_make_badarg(env);
+    allocate_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    allocate_info.allocationSize = size;
+    allocate_info.memoryTypeIndex = memoryTypeIndex;
+
+    device_memory = enif_alloc_resource(vk_resources[VK_DEVICE_MEMORY].resource_type, sizeof(VkDeviceMemory));
+
+    if (device_memory && (ret_code = vkAllocateMemory(*device, &allocate_info, NULL, device_memory) == VK_SUCCESS)) {
+        ERL_NIF_TERM term = enif_make_resource(env, device_memory);
+        enif_release_resource(device_memory);
+        return TUPLE_OK(term);
+    } else switch (ret_code) {
+        case VK_ERROR_OUT_OF_HOST_MEMORY:
+            return TUPLE_ERROR(ATOM_OUT_OF_HOST_MEM);
+        case VK_ERROR_OUT_OF_DEVICE_MEMORY:
+            return TUPLE_ERROR(ATOM_OUT_OF_DEVICE_MEM);
+        case VK_ERROR_TOO_MANY_OBJECTS:
+            return TUPLE_ERROR(ATOM_TOO_MANY_OBJECTS);
+        default:
+            return ATOM_NIF_ERROR;
+    }
+}
+
 static ErlNifFunc nif_funcs[] = {
   {"create_instance", 1, create_instance_nif},
   {"destroy_instance", 1, destroy_instance_nif},
@@ -803,7 +849,8 @@ static ErlNifFunc nif_funcs[] = {
   {"destroy_command_pool", 2, destroy_command_pool_nif},
   {"create_buffer_nif", 2, create_buffer_nif},
   {"destroy_buffer", 2, destroy_buffer_nif},
-  {"get_buffer_memory_requirements_nif", 2, get_buffer_memory_requirements_nif}
+  {"get_buffer_memory_requirements_nif", 2, get_buffer_memory_requirements_nif},
+  {"allocate_memory", 2, allocate_memory_nif}
 };
 
 ERL_NIF_INIT(plain_vulkan, nif_funcs, &load, NULL, &upgrade, NULL);
