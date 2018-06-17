@@ -29,6 +29,7 @@ flow_test() ->
                                       ,usage = [transfer_src, transfer_dst]
                                      },
   {ok, Buffer} = plain_vulkan:create_buffer(Device, BufferInfo),
+  _MemReqs = plain_vulkan:get_buffer_memory_requirements(Device, Buffer),
 
   ok = plain_vulkan:destroy_buffer(Device, Buffer),
   ok = plain_vulkan:destroy_command_pool(Device, CommandPool),

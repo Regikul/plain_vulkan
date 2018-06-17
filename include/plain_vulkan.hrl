@@ -142,4 +142,11 @@
 }).
 -type vk_physical_device_memory_properties() :: #vk_physical_device_memory_properties{}.
 
+-record(vk_memory_requirements, {
+  size :: pos_integer(),
+  alignment :: non_neg_integer(),
+  memory_type_flags :: [atom()]
+}).
+-type vk_memory_requirements() :: #vk_memory_requirements{}.
+
 -endif.

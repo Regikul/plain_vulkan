@@ -27,7 +27,7 @@
 
   create_command_pool/2, destroy_command_pool/2,
 
-  create_buffer/2, destroy_buffer/2
+  create_buffer/2, destroy_buffer/2, get_buffer_memory_requirements/2
 ]).
 
 -type vk_instance() :: reference().
@@ -247,6 +247,18 @@ create_buffer_nif(_Device, _CreateInfo) -> erlang:nif_error({error, not_loaded})
 
 -spec destroy_buffer(vk_device(), vk_buffer()) -> ok.
 destroy_buffer(_Device, _Buffer) -> erlang:nif_error({error, not_loaded}).
+
+-spec get_buffer_memory_requirements_nif(vk_device(), vk_buffer()) -> vk_memory_requirements().
+get_buffer_memory_requirements_nif(_Device, _Buffer) -> erlang:nif_error({error, not_loaded}).
+
+-spec get_buffer_memory_requirements(vk_device(), vk_buffer()) -> vk_memory_requirements().
+get_buffer_memory_requirements(Device, Buffer) ->
+  Reqs = get_buffer_memory_requirements_nif(Device, Buffer),
+  #vk_memory_requirements{memory_type_flags = Bits} = Reqs,
+  Reqs#vk_memory_requirements{memory_type_flags = plain_vulkan_util:unfold_flags(Bits, memory_requirements_flags())}.
+
+-spec memory_requirements_flags() -> proplists:proplist().
+memory_requirements_flags() -> memory_types_flags().
 
 %%====================================================================
 %% Internal functions
