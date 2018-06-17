@@ -829,6 +829,21 @@ ENIF(allocate_memory_nif) {
     }
 }
 
+ENIF(free_memory_nif) {
+    VkDevice *device;
+    VkDeviceMemory *memory;
+
+    if (!enif_get_resource(env, argv[0], vk_resources[VK_LOGI_DEV].resource_type, (void **)&device))
+        return enif_make_badarg(env);
+
+    if (!enif_get_resource(env, argv[1], vk_resources[VK_DEVICE_MEMORY].resource_type, (void **)&memory))
+        return enif_make_badarg(env);
+
+    vkFreeMemory(*device, *memory, NULL);
+
+    return ATOM_OK;
+}
+
 ENIF(bind_buffer_memory_nif) {
     VkDevice *device;
     VkBuffer *buffer;
@@ -881,6 +896,7 @@ static ErlNifFunc nif_funcs[] = {
   {"destroy_buffer", 2, destroy_buffer_nif},
   {"get_buffer_memory_requirements_nif", 2, get_buffer_memory_requirements_nif},
   {"allocate_memory", 2, allocate_memory_nif},
+  {"free_memory", 2, free_memory_nif},
   {"bind_buffer_memory", 4, bind_buffer_memory_nif}
 };
 

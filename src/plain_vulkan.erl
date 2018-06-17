@@ -29,7 +29,7 @@
 
   create_buffer/2, destroy_buffer/2, get_buffer_memory_requirements/2,
 
-  allocate_memory/2, bind_buffer_memory/4
+  allocate_memory/2, free_memory/2, bind_buffer_memory/4
 ]).
 
 -type vk_instance() :: reference().
@@ -265,6 +265,9 @@ memory_requirements_flags() -> memory_types_flags().
 
 -spec allocate_memory(vk_device(), vk_memory_allocate_info()) -> vk_device_memory().
 allocate_memory(_Device, _AllocateInfo) -> erlang:nif_error({error, not_loaded}).
+
+-spec free_memory(vk_device(), vk_device_memory()) -> ok.
+free_memory(_Device, _Memory) -> erlang:nif_error({error, not_loaded}).
 
 -spec bind_buffer_memory(vk_device(), vk_buffer(), vk_device_memory(), non_neg_integer()) -> ok | {error, atom()}.
 bind_buffer_memory(_Device, _Buffer, _Memory, _Offset) -> erlang:nif_error({error, not_loaded}).
