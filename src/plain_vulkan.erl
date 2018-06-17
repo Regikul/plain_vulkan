@@ -16,6 +16,7 @@
 
   get_physical_device_properties/1,
   get_physical_device_features/1,
+  get_physical_device_memory_properties/1,
 
   get_physical_device_queue_family_count/1,
   get_physical_device_queue_family_properties/1,
@@ -28,6 +29,10 @@
 
   create_buffer/2, destroy_buffer/2
 ]).
+
+
+%% hide unised warning
+-export([id/1]).
 
 -type vk_instance() :: reference().
 -type vk_device() :: reference().
@@ -117,6 +122,18 @@ get_physical_device_queue_family_count(_Device) -> erlang:nif_error({error, not_
 -spec get_physical_device_queue_family_properties_nif(vk_physical_device(), pos_integer()) -> {ok, [vk_queue_family_properties()]}.
 get_physical_device_queue_family_properties_nif(_Device, _Count) -> erlang:nif_error({error, not_loaded}).
 
+-spec get_physical_device_memory_properties_nif(vk_physical_device()) -> vk_physical_device_memory_properties().
+get_physical_device_memory_properties_nif(_Dev) -> erlang:nif_error({error, not_loaded}).
+
+-spec get_physical_device_memory_properties(vk_physical_device()) -> vk_physical_device_memory_properties().
+get_physical_device_memory_properties(Device) ->
+  #vk_physical_device_memory_properties{memory_types = MemoryTypes
+                                        ,memory_heaps = MemoryHeaps
+                                       } = get_physical_device_memory_properties_nif(Device),
+  MemTypes = lists:map(fun id/1, MemoryTypes),
+  MemHeaps = lists:map(fun id/1, MemoryHeaps),
+  #vk_physical_device_memory_properties{memory_heaps = MemHeaps, memory_types = MemTypes}.
+
 -spec get_physical_device_queue_family_properties(vk_physical_device(), pos_integer()) -> {ok, [vk_queue_family_properties()]}.
 get_physical_device_queue_family_properties(Device, Count) ->
   case get_physical_device_queue_family_properties_nif(Device, Count) of
@@ -205,6 +222,8 @@ destroy_buffer(_Device, _Buffer) -> erlang:nif_error({error, not_loaded}).
 %%====================================================================
 %% Internal functions
 %%====================================================================
+
+id(X) -> X.
 
 -spec init() -> ok.
 init() ->

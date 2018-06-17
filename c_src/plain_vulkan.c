@@ -358,6 +358,47 @@ ENIF(get_physical_device_features_nif) {
                                   );
 }
 
+ENIF(get_physical_device_memory_properties_nif) {
+    VkPhysicalDevice *device = NULL;
+    VkPhysicalDeviceMemoryProperties memoryProperties;
+
+    if (enif_get_resource(env, argv[0], vk_resources[VK_PHYS_DEV].resource_type, (void **)&device) == 0)
+        return enif_make_badarg(env);
+
+    vkGetPhysicalDeviceMemoryProperties(*device, &memoryProperties);
+
+    ERL_NIF_TERM memory_types[memoryProperties.memoryTypeCount],
+                 memory_heaps[memoryProperties.memoryHeapCount];
+
+    for(unsigned i = 0; i < memoryProperties.memoryTypeCount; i++) {
+        ERL_NIF_TERM propFlags,
+                     heapIndex;
+
+        propFlags = enif_make_uint(env, memoryProperties.memoryTypes[i].propertyFlags);
+        heapIndex = enif_make_uint(env, memoryProperties.memoryTypes[i].heapIndex);
+        memory_types[i] = enif_make_tuple(env, 2, propFlags, heapIndex);
+    }
+
+    for (unsigned i = 0; i < memoryProperties.memoryHeapCount; i++) {
+        ERL_NIF_TERM device_size,
+                     flags;
+
+        device_size = enif_make_ulong(env, memoryProperties.memoryHeaps[i].size);
+        flags = enif_make_uint(env, memoryProperties.memoryHeaps[i].flags);
+        memory_heaps[i] = enif_make_tuple(env, 2, device_size, flags);
+    }
+
+    ERL_NIF_TERM types_list, heaps_list;
+
+    types_list = enif_make_list_from_array(env, memory_types, memoryProperties.memoryTypeCount);
+    heaps_list = enif_make_list_from_array(env, memory_heaps, memoryProperties.memoryHeapCount);
+
+    return enif_make_tuple(env, 3, ATOM("vk_physical_device_memory_properties")
+                                 , types_list
+                                 , heaps_list
+                                 );
+}
+
 ENIF(get_physical_device_queue_family_count_nif) {
     VkPhysicalDevice *device = NULL;
     uint32_t propCount = 0;
@@ -731,6 +772,7 @@ static ErlNifFunc nif_funcs[] = {
   {"enumerate_physical_devices", 2, enumerate_physical_devices_nif},
   {"get_physical_device_properties", 1, get_physical_device_properties_nif},
   {"get_physical_device_features", 1, get_physical_device_features_nif},
+  {"get_physical_device_memory_properties_nif", 1, get_physical_device_memory_properties_nif},
   {"get_physical_device_queue_family_count", 1, get_physical_device_queue_family_count_nif},
   {"get_physical_device_queue_family_properties_nif", 2, get_physical_device_queue_family_properties_nif},
   {"create_device", 2, create_device_nif},

@@ -134,4 +134,12 @@
 }).
 -type vk_buffer_create_info() :: #vk_buffer_create_info{}.
 
+-type vk_memory_type() :: {[atom()], non_neg_integer()}.
+-type vk_memory_heap() :: {non_neg_integer(), [atom()]}.
+-record(vk_physical_device_memory_properties,{
+  memory_types = [] :: [vk_memory_type()],
+  memory_heaps = [] :: [vk_memory_heap()]
+}).
+-type vk_physical_device_memory_properties() :: #vk_physical_device_memory_properties{}.
+
 -endif.
