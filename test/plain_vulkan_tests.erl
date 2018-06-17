@@ -42,3 +42,18 @@ find_compute_queue(#vk_queue_family_properties{queueFlags = Flags, familyIndex =
   end;
 find_compute_queue(_, #vk_device_queue_create_info{} = Info) ->
   Info.
+
+lists_to_bits_test() ->
+  Desc = [{one, 1}, {two, 2}, {four, 4}],
+  0 = plain_vulkan_util:fold_flags([], Desc),
+  1 = plain_vulkan_util:fold_flags([one], Desc),
+  5 = plain_vulkan_util:fold_flags([one, four], Desc),
+  3 = plain_vulkan_util:fold_flags([one, two, two], Desc).
+
+bits_to_lists_test() ->
+  Desc = [{one, 1}, {two, 2}, {four, 4}],
+  [] = plain_vulkan_util:unfold_flags(0, Desc),
+  [one] = plain_vulkan_util:unfold_flags(1, Desc),
+  List = plain_vulkan_util:unfold_flags(5, Desc),
+  true = lists:member(one, List),
+  true = lists:member(four, List).

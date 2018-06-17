@@ -121,14 +121,36 @@ get_physical_device_queue_family_properties_nif(_Device, _Count) -> erlang:nif_e
 -spec get_physical_device_memory_properties_nif(vk_physical_device()) -> vk_physical_device_memory_properties().
 get_physical_device_memory_properties_nif(_Dev) -> erlang:nif_error({error, not_loaded}).
 
+-spec memory_types_flags() -> proplists:proplist().
+memory_types_flags() ->
+  [{device_local, 16#01}
+   ,{host_visible, 16#02}
+   ,{host_coherent, 16#04}
+   ,{host_cached, 16#08}
+   ,{lazily_allocated, 16#10}
+   ,{protected, 16#20}
+  ].
+
+-spec memory_heaps_flags() -> proplists:proplist().
+memory_heaps_flags() ->
+  [{device_local, 16#1}
+   ,{multi_instance, 16#2}
+  ].
+
 -spec get_physical_device_memory_properties(vk_physical_device()) -> vk_physical_device_memory_properties().
 get_physical_device_memory_properties(Device) ->
   #vk_physical_device_memory_properties{memory_types = MemoryTypes
                                         ,memory_heaps = MemoryHeaps
                                        } = get_physical_device_memory_properties_nif(Device),
-  MemTypes = lists:map(fun plain_vulkan_util:id/1, MemoryTypes),
-  MemHeaps = lists:map(fun plain_vulkan_util:id/1, MemoryHeaps),
+  MemTypes = lists:map(fun memory_type_bits_to_list/1, MemoryTypes),
+  MemHeaps = lists:map(fun memory_heaps_bits_to_list/1, MemoryHeaps),
   #vk_physical_device_memory_properties{memory_heaps = MemHeaps, memory_types = MemTypes}.
+
+-spec memory_type_bits_to_list(vk_memory_type()) -> vk_memory_type().
+memory_type_bits_to_list({Bits, Index}) -> {plain_vulkan_util:unfold_flags(Bits, memory_types_flags()), Index}.
+
+-spec memory_heaps_bits_to_list(vk_memory_type()) -> vk_memory_type().
+memory_heaps_bits_to_list({Size, Bits}) -> {Size, plain_vulkan_util:unfold_flags(Bits, memory_heaps_flags())}.
 
 -spec get_physical_device_queue_family_properties(vk_physical_device(), pos_integer()) -> {ok, [vk_queue_family_properties()]}.
 get_physical_device_queue_family_properties(Device, Count) ->
