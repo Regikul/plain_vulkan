@@ -829,6 +829,36 @@ ENIF(allocate_memory_nif) {
     }
 }
 
+ENIF(bind_buffer_memory_nif) {
+    VkDevice *device;
+    VkBuffer *buffer;
+    VkDeviceMemory *memory;
+    VkDeviceSize offset;
+
+    if (!enif_get_resource(env, argv[0], vk_resources[VK_LOGI_DEV].resource_type, (void **)&device))
+        return enif_make_badarg(env);
+
+    if (!enif_get_resource(env, argv[1], vk_resources[VK_BUFFER].resource_type, (void **)&buffer))
+        return enif_make_badarg(env);
+
+    if (!enif_get_resource(env, argv[2], vk_resources[VK_DEVICE_MEMORY].resource_type, (void **)&memory))
+        return enif_make_badarg(env);
+
+    if (!enif_get_ulong(env, argv[3], &offset))
+        return enif_make_badarg(env);
+
+    switch (vkBindBufferMemory(*device, *buffer, *memory, offset)) {
+        case VK_SUCCESS:
+            return ATOM_OK;
+        case VK_ERROR_OUT_OF_HOST_MEMORY:
+            return ATOM_OUT_OF_HOST_MEM;
+        case VK_ERROR_OUT_OF_DEVICE_MEMORY:
+            return ATOM_OUT_OF_DEVICE_MEM;
+        default:
+            return ATOM_NIF_ERROR;
+    }
+}
+
 static ErlNifFunc nif_funcs[] = {
   {"create_instance", 1, create_instance_nif},
   {"destroy_instance", 1, destroy_instance_nif},
@@ -850,7 +880,8 @@ static ErlNifFunc nif_funcs[] = {
   {"create_buffer_nif", 2, create_buffer_nif},
   {"destroy_buffer", 2, destroy_buffer_nif},
   {"get_buffer_memory_requirements_nif", 2, get_buffer_memory_requirements_nif},
-  {"allocate_memory", 2, allocate_memory_nif}
+  {"allocate_memory", 2, allocate_memory_nif},
+  {"bind_buffer_memory", 4, bind_buffer_memory_nif}
 };
 
 ERL_NIF_INIT(plain_vulkan, nif_funcs, &load, NULL, &upgrade, NULL);
