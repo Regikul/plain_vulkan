@@ -36,13 +36,14 @@ flow_test() ->
 
   MemoryType = lists:foldl( find_memory_of_type(MemTypeFlags), {0}, MemTypes),
 
-  ?debugFmt("required memory is ~pb of type ~p~n", [MemReqSize, MemTypeFlags]),
-  ?debugFmt("found memory types on this device: ~p~n", [_DeviceMemoryTypes]),
-  ?debugFmt("selected memory from index ~p", [MemoryType]),
+%%  ?debugFmt("required memory is ~pb of type ~p~n", [MemReqSize, MemTypeFlags]),
+%%  ?debugFmt("found memory types on this device: ~p~n", [_DeviceMemoryTypes]),
+%%  ?debugFmt("selected memory from index ~p", [MemoryType]),
 
   AllocInfo = #vk_memory_allocate_info{size = MemReqSize, memory_type = MemoryType},
 
   {ok, Memory} = plain_vulkan:allocate_memory(Device, AllocInfo),
+  plain_vulkan:bind_buffer_memory(Device, Buffer, Memory, 0),
 
   ok = plain_vulkan:free_memory(Device, Memory),
   ok = plain_vulkan:destroy_buffer(Device, Buffer),
