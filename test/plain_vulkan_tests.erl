@@ -31,12 +31,16 @@ flow_test() ->
   #vk_memory_requirements{size = MemReqSize
                           ,memory_type_flags = MemTypeFlags
                          } = plain_vulkan:get_buffer_memory_requirements(Device, Buffer),
-  DeviceMemoryTypes = plain_vulkan:get_physical_device_memory_properties(PhysDevice),
+  _DeviceMemoryTypes = plain_vulkan:get_physical_device_memory_properties(PhysDevice),
+  #vk_physical_device_memory_properties{memory_types = MemTypes} = _DeviceMemoryTypes,
+
+  MemoryType = lists:foldl( find_memory_of_type(MemTypeFlags), {0}, MemTypes),
 
   ?debugFmt("required memory is ~pb of type ~p~n", [MemReqSize, MemTypeFlags]),
-  ?debugFmt("found memory types on this device: ~p~n", [DeviceMemoryTypes]),
+  ?debugFmt("found memory types on this device: ~p~n", [_DeviceMemoryTypes]),
+  ?debugFmt("selected memory from index ~p", [MemoryType]),
 
-  AllocInfo = #vk_memory_allocate_info{size = MemReqSize, memory_type = mem_type}, %% here I lost with empty head
+  AllocInfo = #vk_memory_allocate_info{size = MemReqSize, memory_type = MemoryType},
 
   {ok, Memory} = plain_vulkan:allocate_memory(Device, AllocInfo),
 
@@ -45,6 +49,16 @@ flow_test() ->
   ok = plain_vulkan:destroy_command_pool(Device, CommandPool),
   ok = plain_vulkan:destroy_device(Device),
   ok = plain_vulkan:destroy_instance(Instance).
+
+find_memory_of_type(MemReqFlags) ->
+  fun ({MemFlags, _HeapNumber}, {Index}) ->
+    case lists:subtract(MemReqFlags, MemFlags) of
+      [] -> Index;
+      _ -> {Index + 1}
+    end;
+    ({_MemFlags, _HeapNumber}, Index) ->
+      Index
+  end.
 
 find_compute_queue(#vk_queue_family_properties{queueFlags = Flags, familyIndex = Index}, null) ->
   case lists:member(compute, Flags) of
