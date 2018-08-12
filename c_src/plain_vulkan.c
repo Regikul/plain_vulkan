@@ -40,6 +40,7 @@ typedef enum {
     VK_COMMAND_POOL,
     VK_BUFFER,
     VK_DEVICE_MEMORY,
+    VK_DESCRIPTOR_SET_LAYOUT,
 
     VK_RESOURCE_COUNT
 } vk_resource_enumeration;
@@ -58,7 +59,8 @@ vk_resource_definition vk_resources[] = {
     {"VK_QUEUE", NULL},
     {"VK_COMMAND_POOL", NULL},
     {"VK_BUFFER", NULL},
-    {"VK_DEVICE_MEMORY", NULL}
+    {"VK_DEVICE_MEMORY", NULL},
+    {"VK_DESCRIPTOR_SET_LAYOUT", NULL}
 };
 
 static int open_resources(ErlNifEnv* env) {
@@ -885,6 +887,90 @@ ENIF(bind_buffer_memory_nif) {
     }
 }
 
+ENIF(create_descriptor_set_layout_nif) {
+    VkDevice *device;
+    VkDescriptorSetLayoutCreateInfo create_info = {0};
+    const ERL_NIF_TERM *record = NULL;
+    int arity = 0;
+    unsigned flags = 0;
+    unsigned len = 0;
+
+    if (!enif_get_resource(env, argv[0], vk_resources[VK_LOGI_DEV].resource_type, (void **)&device))
+        return enif_make_badarg(env);
+
+    if (!enif_get_tuple(env, argv[1], &arity, &record) ||
+        !enif_is_identical(record[0], ATOM("vk_descriptor_set_layout_create_info"))){
+
+        return enif_make_badarg(env);
+    }
+    if (!enif_get_uint(env, record[1], &flags))
+        return enif_make_badarg(env);
+
+    ERL_NIF_TERM list = record[2];
+    if (!enif_get_list_length(env, list, &len))
+        return enif_make_badarg(env);
+
+    VkDescriptorSetLayoutBinding bindings[len];
+
+    for (unsigned i = 0; i < len; i++) {
+        ERL_NIF_TERM head;
+        const ERL_NIF_TERM *binds = NULL;
+        int barity = 0;
+        if (!enif_get_list_cell(env, list, &head, &list))
+            break;
+        VkDescriptorSetLayoutBinding *binding = bindings + i;
+
+        if (!enif_get_tuple(env, head, &barity, &binds) ||
+            !enif_is_identical(binds[0], ATOM("vk_descriptor_set_layout_binding"))){
+
+            return enif_make_badarg(env);
+        }
+
+        enif_get_uint(env, binds[1], &binding->binding);
+        enif_get_uint(env, binds[2], &binding->descriptorType);
+        enif_get_uint(env, binds[3], &binding->descriptorCount);
+        enif_get_uint(env, binds[4], &binding->stageFlags);
+        binding->pImmutableSamplers = NULL;
+    }
+
+    create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    create_info.flags = flags;
+    create_info.bindingCount = len;
+    create_info.pBindings = bindings;
+
+    VkDescriptorSetLayout *set_layout = NULL;
+    VkResult ret_code = VK_ERROR_OUT_OF_HOST_MEMORY;
+
+    set_layout = enif_alloc_resource(vk_resources[VK_DESCRIPTOR_SET_LAYOUT].resource_type, sizeof(VkDescriptorSetLayout));
+
+    if (set_layout && (ret_code = vkCreateDescriptorSetLayout(*device, &create_info, NULL, set_layout) == VK_SUCCESS)) {
+        ERL_NIF_TERM term = enif_make_resource(env, set_layout);
+        enif_release_resource(set_layout);
+        return TUPLE_OK(term);
+    } else switch (ret_code) {
+        case VK_ERROR_OUT_OF_HOST_MEMORY:
+            return TUPLE_ERROR(ATOM_OUT_OF_HOST_MEM);
+        case VK_ERROR_OUT_OF_DEVICE_MEMORY:
+            return TUPLE_ERROR(ATOM_OUT_OF_DEVICE_MEM);
+        default:
+            return ATOM_NIF_ERROR;
+    }
+}
+
+ENIF(destroy_descriptor_set_layout_nif) {
+    VkDevice *device;
+    VkDescriptorSetLayout *set_layout;
+
+    if (!enif_get_resource(env, argv[0], vk_resources[VK_LOGI_DEV].resource_type, (void **)&device))
+        return enif_make_badarg(env);
+    if (!enif_get_resource(env, argv[1], vk_resources[VK_DESCRIPTOR_SET_LAYOUT].resource_type, (void **)&set_layout))
+        return enif_make_badarg(env);
+
+    vkDestroyDescriptorSetLayout(*device, *set_layout, NULL);
+
+    return ATOM_OK;
+}
+
 static ErlNifFunc nif_funcs[] = {
   {"create_instance", 1, create_instance_nif},
   {"destroy_instance", 1, destroy_instance_nif},
@@ -909,7 +995,9 @@ static ErlNifFunc nif_funcs[] = {
   {"get_buffer_memory_requirements_nif", 2, get_buffer_memory_requirements_nif},
   {"allocate_memory", 2, allocate_memory_nif},
   {"free_memory", 2, free_memory_nif},
-  {"bind_buffer_memory", 4, bind_buffer_memory_nif}
+  {"bind_buffer_memory", 4, bind_buffer_memory_nif},
+  {"create_descriptor_set_layout_nif", 2, create_descriptor_set_layout_nif},
+  {"destroy_descriptor_set_layout", 2, destroy_descriptor_set_layout_nif}
 };
 
 ERL_NIF_INIT(plain_vulkan, nif_funcs, &load, NULL, &upgrade, NULL);

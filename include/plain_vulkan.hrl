@@ -155,4 +155,31 @@
 }).
 -type vk_memory_allocate_info() :: #vk_memory_allocate_info{}.
 
+-record(vk_descriptor_set_layout_binding, {
+  binding :: non_neg_integer(),
+  descriptor_type :: non_neg_integer(),
+  descriptor_count :: non_neg_integer(),
+  stage_flags :: [atom()]
+  %% don't want to implement: immutable_samplers
+}).
+-type vk_descriptor_set_layout_binding() :: vk_descriptor_set_layout_binding().
+
+-record(vk_descriptor_set_layout_create_info, {
+  flags :: [atom()],
+  bindings :: [vk_descriptor_set_layout_binding()]
+}).
+-type vk_descriptor_set_layout_create_info() :: #vk_descriptor_set_layout_create_info{}.
+
+-define(VK_DESCRIPTOR_TYPE_SAMPLER,0).
+-define(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,1).
+-define(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,2).
+-define(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,3).
+-define(VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER,4).
+-define(VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER,5).
+-define(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,6).
+-define(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,7).
+-define(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,8).
+-define(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC,9).
+-define(VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,10).
+
 -endif.

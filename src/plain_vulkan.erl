@@ -29,7 +29,9 @@
 
   create_buffer/2, destroy_buffer/2, get_buffer_memory_requirements/2,
 
-  allocate_memory/2, free_memory/2, bind_buffer_memory/4
+  allocate_memory/2, free_memory/2, bind_buffer_memory/4,
+
+  create_descriptor_set_layout/2, destroy_descriptor_set_layout/2
 ]).
 
 -type vk_instance() :: reference().
@@ -39,6 +41,7 @@
 -type vk_command_pool() :: reference().
 -type vk_device_memory() :: reference().
 -type vk_physical_device() :: reference().
+-type vk_descriptor_set_layout() :: reference().
 -type vk_physical_devices() :: [vk_physical_device()].
 -type vk_enumerate_dev_ret() :: {ok, vk_physical_devices()}
                                 | {incomplete, vk_physical_devices()}
@@ -274,6 +277,30 @@ free_memory(_Device, _Memory) -> erlang:nif_error({error, not_loaded}).
 
 -spec bind_buffer_memory(vk_device(), vk_buffer(), vk_device_memory(), non_neg_integer()) -> ok | {error, atom()}.
 bind_buffer_memory(_Device, _Buffer, _Memory, _Offset) -> erlang:nif_error({error, not_loaded}).
+
+-spec shader_stage_flags() -> proplists:proplist().
+shader_stage_flags() ->
+  [{vertex, 16#1}
+   ,{tesselation_control, 16#2}
+   ,{tesselation_evaluation, 16#4}
+   ,{geometry, 16#8}
+   ,{fragment, 16#10}
+   ,{compute, 16#20}
+   ,{all_graphics, 16#1F}
+   ,{all, 16#7FFFFFFF}
+  ].
+
+-spec create_descriptor_set_layout(vk_device(), vk_descriptor_set_layout_create_info()) -> either(vk_descriptor_set_layout(), atom()).
+create_descriptor_set_layout(Device, CreateInfo) ->
+  Flags = CreateInfo#vk_descriptor_set_layout_create_info.flags,
+  Bits = plain_vulkan_util:fold_flags(Flags, shader_stage_flags()),
+  create_descriptor_set_layout_nif(Device, CreateInfo#vk_descriptor_set_layout_create_info{flags = Bits}).
+
+-spec create_descriptor_set_layout_nif(vk_device(), vk_descriptor_set_layout_create_info()) -> either(vk_descriptor_set_layout(), atom()).
+create_descriptor_set_layout_nif(_Device, _CreateInfo) -> erlang:nif_error({error, not_loaded}).
+
+-spec destroy_descriptor_set_layout(vk_device(), vk_descriptor_set_layout()) -> ok.
+destroy_descriptor_set_layout(_Device, _SetLayout) -> erlang:nif_error({error, not_loaded}).
 
 %%====================================================================
 %% Internal functions
