@@ -605,6 +605,17 @@ ENIF(create_device_nif) {
     }
 }
 
+ENIF(device_wait_idle_nif) {
+    VkDevice *logic_dev = NULL;
+
+    if (enif_get_resource(env, argv[0], vk_resources[VK_LOGI_DEV].resource_type, (void **)&logic_dev) == 0)
+        return enif_make_badarg(env);
+
+    vkDeviceWaitIdle(*logic_dev);
+
+    return ATOM_OK;
+}
+
 ENIF(destroy_device_nif) {
     VkDevice *logic_dev = NULL;
 
@@ -888,6 +899,7 @@ static ErlNifFunc nif_funcs[] = {
   {"get_physical_device_queue_family_count", 1, get_physical_device_queue_family_count_nif},
   {"get_physical_device_queue_family_properties_nif", 2, get_physical_device_queue_family_properties_nif},
   {"create_device", 2, create_device_nif},
+  {"device_wait_idle", 1, device_wait_idle_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
   {"destroy_device", 1, destroy_device_nif},
   {"get_device_queue", 3, get_device_queue_nif},
   {"create_command_pool_nif", 2, create_command_pool_nif},

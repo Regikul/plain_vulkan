@@ -48,6 +48,7 @@ flow_test() ->
   ok = plain_vulkan:free_memory(Device, Memory),
   ok = plain_vulkan:destroy_buffer(Device, Buffer),
   ok = plain_vulkan:destroy_command_pool(Device, CommandPool),
+  ok = plain_vulkan:device_wait_idle(Device),
   ok = plain_vulkan:destroy_device(Device),
   ok = plain_vulkan:destroy_instance(Instance).
 

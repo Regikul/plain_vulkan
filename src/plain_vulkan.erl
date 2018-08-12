@@ -23,7 +23,7 @@
 
   get_device_queue/3,
 
-  create_device/2, destroy_device/1,
+  create_device/2, destroy_device/1, device_wait_idle/1,
 
   create_command_pool/2, destroy_command_pool/2,
 
@@ -188,7 +188,10 @@ get_physical_device_queue_family_properties(Device) ->
 -spec create_device(vk_physical_device(), vk_device_create_info()) -> either(vk_device(), atom()).
 create_device(_PhysDev, _CreateInfo) -> erlang:nif_error({error, not_loaded}).
 
--spec destroy_device(term()) -> 'ok'.
+-spec device_wait_idle(vk_device()) -> 'ok'.
+device_wait_idle(_LogicDev) -> erlang:nif_error({error, not_loaded}).
+
+-spec destroy_device(vk_device()) -> 'ok'.
 destroy_device(_LogicDev) -> erlang:nif_error({error, not_loaded}).
 
 -spec get_device_queue(vk_device(), pos_integer(), pos_integer()) -> vk_queue().
