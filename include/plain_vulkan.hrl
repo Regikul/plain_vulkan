@@ -155,9 +155,10 @@
 }).
 -type vk_memory_allocate_info() :: #vk_memory_allocate_info{}.
 
+-type vk_descriptor_type() :: non_neg_integer().
 -record(vk_descriptor_set_layout_binding, {
   binding :: non_neg_integer(),
-  descriptor_type :: non_neg_integer(),
+  descriptor_type :: vk_descriptor_type(),
   descriptor_count :: non_neg_integer(),
   stage_flags :: [atom()]
   %% don't want to implement: immutable_samplers
@@ -181,5 +182,18 @@
 -define(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,8).
 -define(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC,9).
 -define(VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,10).
+
+-record(vk_descriptor_pool_create_info, {
+    flags = [] :: atom(),
+    max_sets :: non_neg_integer(),
+    pool_sizes = [] :: vk_descriptor_pool_size()
+}).
+-type vk_descriptor_pool_create_info() :: #vk_descriptor_pool_create_info{}.
+
+-record(vk_descriptor_pool_size, {
+    type :: vk_descriptor_type(),
+    descriptor_count :: non_neg_integer()
+}).
+-type vk_descriptor_pool_size() :: #vk_descriptor_pool_size{}.
 
 -endif.

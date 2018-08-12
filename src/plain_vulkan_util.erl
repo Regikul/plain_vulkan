@@ -26,8 +26,8 @@ id(X) -> X.
 id(_Value, Acc) -> Acc.
 
 -spec fold_flags([atom()], proplists:proplist()) -> non_neg_integer().
-fold_flags(Flags, _Desc) ->
-  lists:foldl(count_bits_by(_Desc), 0, Flags).
+fold_flags(Flags, Desc) ->
+  lists:foldl(count_bits_by(Desc), 0, Flags).
 
 -spec count_bits_by(proplists:proplist()) -> fold_fun(atom(), non_neg_integer()).
 count_bits_by(FlagDesc) ->

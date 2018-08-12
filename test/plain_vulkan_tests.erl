@@ -53,11 +53,16 @@ flow_test() ->
   },
   DescriptorSetCreateInfo = #vk_descriptor_set_layout_create_info{bindings = [Binding]},
   {ok, Layout} = plain_vulkan:create_descriptor_set_layout(Device, DescriptorSetCreateInfo),
+  PoolSize = #vk_descriptor_pool_size{type = ?VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, descriptor_count = 1},
+  PoolCreateInfo = #vk_descriptor_pool_create_info{max_sets = 1, pool_sizes = [PoolSize]},
+  {ok, Pool} = plain_vulkan:create_descriptor_pool(Device, PoolCreateInfo),
 
+  ok = plain_vulkan:destroy_descriptor_pool(Device, Pool),
   ok = plain_vulkan:destroy_descriptor_set_layout(Device, Layout),
   ok = plain_vulkan:free_memory(Device, Memory),
   ok = plain_vulkan:destroy_buffer(Device, Buffer),
   ok = plain_vulkan:destroy_command_pool(Device, CommandPool),
+
   ok = plain_vulkan:device_wait_idle(Device),
   ok = plain_vulkan:destroy_device(Device),
   ok = plain_vulkan:destroy_instance(Instance).

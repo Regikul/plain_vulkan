@@ -5,33 +5,23 @@
 %% API exports
 -export([
   create_instance/1, destroy_instance/1,
-
   count_instance_layer_properties/0,
-
   count_instance_extension_properties/1,
   enumerate_instance_extension_properties/1,
-
   count_physical_devices/1,
   enumerate_physical_devices/1,
-
   get_physical_device_properties/1,
   get_physical_device_features/1,
   get_physical_device_memory_properties/1,
-
   get_physical_device_queue_family_count/1,
   get_physical_device_queue_family_properties/1,
-
   get_device_queue/3,
-
   create_device/2, destroy_device/1, device_wait_idle/1,
-
   create_command_pool/2, destroy_command_pool/2,
-
   create_buffer/2, destroy_buffer/2, get_buffer_memory_requirements/2,
-
   allocate_memory/2, free_memory/2, bind_buffer_memory/4,
-
-  create_descriptor_set_layout/2, destroy_descriptor_set_layout/2
+  create_descriptor_set_layout/2, destroy_descriptor_set_layout/2,
+  create_descriptor_pool/2, destroy_descriptor_pool/2
 ]).
 
 -type vk_instance() :: reference().
@@ -42,6 +32,7 @@
 -type vk_device_memory() :: reference().
 -type vk_physical_device() :: reference().
 -type vk_descriptor_set_layout() :: reference().
+-type vk_descriptor_pool() :: reference().
 -type vk_physical_devices() :: [vk_physical_device()].
 -type vk_enumerate_dev_ret() :: {ok, vk_physical_devices()}
                                 | {incomplete, vk_physical_devices()}
@@ -301,6 +292,18 @@ create_descriptor_set_layout_nif(_Device, _CreateInfo) -> erlang:nif_error({erro
 
 -spec destroy_descriptor_set_layout(vk_device(), vk_descriptor_set_layout()) -> ok.
 destroy_descriptor_set_layout(_Device, _SetLayout) -> erlang:nif_error({error, not_loaded}).
+
+-spec create_descriptor_pool(vk_device(), vk_descriptor_pool_create_info()) -> either(vk_descriptor_pool(), atom()).
+create_descriptor_pool(Device, CreateInfo) ->
+  Flags = CreateInfo#vk_descriptor_pool_create_info.flags,
+  Bits = plain_vulkan_util:fold_flags(Flags, [{free_descriptor_set, 16#1}]),
+  create_descriptor_pool_nif(Device, CreateInfo#vk_descriptor_pool_create_info{flags = Bits}).
+
+-spec create_descriptor_pool_nif(vk_device(), vk_descriptor_pool_create_info()) -> either(vk_descriptor_pool(), atom()).
+create_descriptor_pool_nif(_Device, _CreateInfo) -> erlang:nif_error({error, not_loaded}).
+
+-spec destroy_descriptor_pool(vk_device(), vk_descriptor_pool()) -> ok.
+destroy_descriptor_pool(_Device, _Pool) -> erlang:nif_error({error, not_loaded}).
 
 %%====================================================================
 %% Internal functions
