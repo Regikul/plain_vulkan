@@ -165,7 +165,7 @@
 -type vk_descriptor_set_layout_binding() :: vk_descriptor_set_layout_binding().
 
 -record(vk_descriptor_set_layout_create_info, {
-  flags :: [atom()],
+  flags = [] :: [atom()],
   bindings :: [vk_descriptor_set_layout_binding()]
 }).
 -type vk_descriptor_set_layout_create_info() :: #vk_descriptor_set_layout_create_info{}.

@@ -51,10 +51,7 @@ flow_test() ->
     descriptor_count = 1,
     stage_flags = [compute]
   },
-  DescriptorSetCreateInfo = #vk_descriptor_set_layout_create_info{
-    flags = [],
-    bindings = [Binding]
-  },
+  DescriptorSetCreateInfo = #vk_descriptor_set_layout_create_info{bindings = [Binding]},
   {ok, Layout} = plain_vulkan:create_descriptor_set_layout(Device, DescriptorSetCreateInfo),
 
   ok = plain_vulkan:destroy_descriptor_set_layout(Device, Layout),
