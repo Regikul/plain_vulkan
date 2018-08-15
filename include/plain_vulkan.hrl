@@ -184,7 +184,7 @@
 -define(VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,10).
 
 -record(vk_descriptor_pool_create_info, {
-    flags = [] :: atom(),
+    flags = [free_descriptor_set] :: atom(),
     max_sets :: non_neg_integer(),
     pool_sizes = [] :: vk_descriptor_pool_size()
 }).
@@ -195,5 +195,11 @@
     descriptor_count :: non_neg_integer()
 }).
 -type vk_descriptor_pool_size() :: #vk_descriptor_pool_size{}.
+
+-record (vk_descriptor_set_allocate_info, {
+    pool :: plain_vulkan:vk_descriptor_pool(),
+    set_layouts :: [plain_vulkan:vk_descriptor_set_layout()]
+}).
+-type vk_descriptor_set_allocate_info() :: #vk_descriptor_set_allocate_info{}.
 
 -endif.

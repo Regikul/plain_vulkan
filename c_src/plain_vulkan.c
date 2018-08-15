@@ -42,6 +42,7 @@ typedef enum {
     VK_DEVICE_MEMORY,
     VK_DESCRIPTOR_SET_LAYOUT,
     VK_DESCRIPTOR_POOL,
+    VK_DESCRIPTOR_SET,
 
     VK_RESOURCE_COUNT
 } vk_resource_enumeration;
@@ -62,7 +63,8 @@ vk_resource_definition vk_resources[] = {
     {"VK_BUFFER", NULL},
     {"VK_DEVICE_MEMORY", NULL},
     {"VK_DESCRIPTOR_SET_LAYOUT", NULL},
-    {"VK_DESCRIPTOR_POOL", NULL}
+    {"VK_DESCRIPTOR_POOL", NULL},
+    {"VK_DESCRIPTOR_SET", NULL}
 };
 
 static int open_resources(ErlNifEnv* env) {
@@ -1049,6 +1051,108 @@ ENIF(destroy_descriptor_pool_nif) {
     return ATOM_OK;
 }
 
+ENIF(allocate_descriptor_sets_nif) {
+    VkDevice *device;
+    const ERL_NIF_TERM* record;
+    int arity = 0;
+    unsigned len = 0;
+    VkDescriptorSetAllocateInfo allocate_info = {0};
+    VkDescriptorPool *pool;
+    VkResult result = VK_ERROR_OUT_OF_HOST_MEMORY;
+
+    if (!enif_get_resource(env, argv[0], vk_resources[VK_LOGI_DEV].resource_type, (void **)&device))
+        return enif_make_badarg(env);
+    if (!enif_get_tuple(env, argv[1], &arity, &record) ||
+        !enif_is_identical(record[0], ATOM("vk_descriptor_set_allocate_info"))){
+
+        return enif_make_badarg(env);
+    }
+
+    if (!enif_get_resource(env, record[1], vk_resources[VK_DESCRIPTOR_POOL].resource_type, (void **)&pool))
+        return enif_make_badarg(env);
+    ERL_NIF_TERM list = record[2];
+    enif_get_list_length(env, list, &len);
+
+    VkDescriptorSetLayout layouts[len];
+    for (unsigned i = 0; i < len; i++) {
+        ERL_NIF_TERM cell;
+        VkDescriptorSetLayout *layout_ptr = NULL;
+        if (!enif_get_list_cell(env, list, &cell, &list))
+            break;
+        if (!enif_get_resource(env, cell, vk_resources[VK_DESCRIPTOR_SET_LAYOUT].resource_type, (void**)&layout_ptr))
+            return enif_make_badarg(env);
+
+        layouts[i] = *layout_ptr;
+    }
+
+    allocate_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    allocate_info.descriptorSetCount = len;
+    allocate_info.pSetLayouts = layouts;
+    allocate_info.descriptorPool = *pool;
+
+    VkDescriptorSet descriptor_sets[len];
+    result = vkAllocateDescriptorSets(*device, &allocate_info, descriptor_sets);
+    switch (result) {
+        case VK_SUCCESS:
+            break;
+        case VK_ERROR_OUT_OF_HOST_MEMORY:
+            return TUPLE_ERROR(ATOM_OUT_OF_HOST_MEM);
+        case VK_ERROR_OUT_OF_DEVICE_MEMORY:
+            return TUPLE_ERROR(ATOM_OUT_OF_DEVICE_MEM);
+        case VK_ERROR_FRAGMENTED_POOL:
+            return TUPLE_ERROR(ATOM("fragmented_pool"));
+        default:
+            return ATOM_NIF_ERROR;
+    }
+
+    ERL_NIF_TERM erl_descriptor_sets[len];
+    for (unsigned i = 0; i < len; i++) {
+        VkDescriptorSet *desc_set = enif_alloc_resource(vk_resources[VK_DESCRIPTOR_SET].resource_type, sizeof(VkDescriptorSet));
+        *desc_set = descriptor_sets[i];
+        erl_descriptor_sets[i] = enif_make_resource(env, desc_set);
+        enif_release_resource(desc_set);
+    }
+    ERL_NIF_TERM erl_desc_sets_list = enif_make_list_from_array(env, erl_descriptor_sets, len);
+
+    return TUPLE_OK(erl_desc_sets_list);
+}
+
+ENIF(free_descriptor_sets_nif) {
+    VkResult result;
+    VkDevice *device;
+    VkDescriptorPool *pool;
+    ERL_NIF_TERM list = argv[2];
+    unsigned len = 0, i;
+
+    if (!enif_get_resource(env, argv[0], vk_resources[VK_LOGI_DEV].resource_type, (void **)&device))
+        return enif_make_badarg(env);
+    if (!enif_get_resource(env, argv[1], vk_resources[VK_DESCRIPTOR_POOL].resource_type, (void **)&pool))
+        return enif_make_badarg(env);
+    if (!enif_is_list(env, list) || !enif_get_list_length(env, list, &len))
+        return enif_make_badarg(env);
+
+    VkDescriptorSet descriptor_sets[len];
+    ERL_NIF_TERM cell;
+    i = 0;
+    while (enif_get_list_cell(env, list, &cell, &list)) {
+        VkDescriptorSet *resource = NULL;
+        enif_get_resource(env, cell, vk_resources[VK_DESCRIPTOR_SET].resource_type, (void**)&resource);
+        descriptor_sets[i] = *resource;
+    }
+
+    result = vkFreeDescriptorSets(*device, *pool, len, descriptor_sets);
+    switch (result) {
+        case VK_SUCCESS:
+            return ATOM_OK;
+        case VK_ERROR_OUT_OF_HOST_MEMORY:
+            return TUPLE_ERROR(ATOM_OUT_OF_HOST_MEM);
+        case VK_ERROR_OUT_OF_DEVICE_MEMORY:
+            return TUPLE_ERROR(ATOM_OUT_OF_DEVICE_MEM);
+        default:
+            return ATOM_NIF_ERROR;
+    }
+}
+
 static ErlNifFunc nif_funcs[] = {
   {"create_instance", 1, create_instance_nif},
   {"destroy_instance", 1, destroy_instance_nif},
@@ -1077,7 +1181,9 @@ static ErlNifFunc nif_funcs[] = {
   {"create_descriptor_set_layout_nif", 2, create_descriptor_set_layout_nif},
   {"destroy_descriptor_set_layout", 2, destroy_descriptor_set_layout_nif},
   {"create_descriptor_pool_nif", 2, create_descriptor_pool_nif},
-  {"destroy_descriptor_pool", 2, destroy_descriptor_pool_nif}
+  {"destroy_descriptor_pool", 2, destroy_descriptor_pool_nif},
+  {"allocate_descriptor_sets", 2, allocate_descriptor_sets_nif},
+  {"free_descriptor_sets", 3, free_descriptor_sets_nif}
 };
 
 ERL_NIF_INIT(plain_vulkan, nif_funcs, &load, NULL, &upgrade, NULL);

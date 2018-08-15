@@ -21,7 +21,8 @@
   create_buffer/2, destroy_buffer/2, get_buffer_memory_requirements/2,
   allocate_memory/2, free_memory/2, bind_buffer_memory/4,
   create_descriptor_set_layout/2, destroy_descriptor_set_layout/2,
-  create_descriptor_pool/2, destroy_descriptor_pool/2
+  create_descriptor_pool/2, destroy_descriptor_pool/2,
+  allocate_descriptor_sets/2, free_descriptor_sets/3
 ]).
 
 -type vk_instance() :: reference().
@@ -32,6 +33,7 @@
 -type vk_device_memory() :: reference().
 -type vk_physical_device() :: reference().
 -type vk_descriptor_set_layout() :: reference().
+-type vk_descriptor_set()  :: reference().
 -type vk_descriptor_pool() :: reference().
 -type vk_physical_devices() :: [vk_physical_device()].
 -type vk_enumerate_dev_ret() :: {ok, vk_physical_devices()}
@@ -53,7 +55,10 @@
   vk_physical_device/0,
   vk_physical_devices/0,
   vk_enumerate_dev_ret/0,
-  vk_count_dev_ret/0
+  vk_count_dev_ret/0,
+  vk_descriptor_pool/0,
+  vk_descriptor_set/0,
+  vk_descriptor_set_layout/0
 ]).
 
 -include("plain_vulkan.hrl").
@@ -304,6 +309,12 @@ create_descriptor_pool_nif(_Device, _CreateInfo) -> erlang:nif_error({error, not
 
 -spec destroy_descriptor_pool(vk_device(), vk_descriptor_pool()) -> ok.
 destroy_descriptor_pool(_Device, _Pool) -> erlang:nif_error({error, not_loaded}).
+
+-spec allocate_descriptor_sets(vk_device(), vk_descriptor_set_allocate_info()) ->  either(vk_descriptor_set(), atom()).
+allocate_descriptor_sets(_Device, _CreateInfo) -> erlang:nif_error({error, not_loaded}).
+
+-spec free_descriptor_sets(vk_device(), vk_descriptor_pool(), [vk_descriptor_set()]) -> ok | {error, atom()}.
+free_descriptor_sets(_Device, _Pool, _Sets) -> erlang:nif_error({error, not_loaded}).
 
 %%====================================================================
 %% Internal functions
