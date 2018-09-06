@@ -1,0 +1,13 @@
+[package]
+name = "plain_vulkan"
+version = "0.1.0"
+authors = ["Maksim Krzhemenevskiy <regikul@gmail.com>"]
+
+[lib]
+name = "plain_vulkan"
+crate_type = ["dylib"]
+
+
+[dependencies]
+rustler = "0.18.0"
+rustler_codegen = "0.18.0"

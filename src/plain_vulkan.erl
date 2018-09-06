@@ -2,6 +2,10 @@
 
 -on_load(init/0).
 
+
+%% Just for rust
+-export([hello_world/0]).
+
 %% API exports
 -export([
   create_instance/1, destroy_instance/1,
@@ -316,6 +320,9 @@ allocate_descriptor_sets(_Device, _CreateInfo) -> erlang:nif_error({error, not_l
 -spec free_descriptor_sets(vk_device(), vk_descriptor_pool(), [vk_descriptor_set()]) -> ok | {error, atom()}.
 free_descriptor_sets(_Device, _Pool, _Sets) -> erlang:nif_error({error, not_loaded}).
 
+-spec hello_world() -> term().
+hello_world() -> erlang:nif_error({error, not_loaded}).
+
 %%====================================================================
 %% Internal functions
 %%====================================================================
@@ -323,4 +330,4 @@ free_descriptor_sets(_Device, _Pool, _Sets) -> erlang:nif_error({error, not_load
 -spec init() -> ok.
 init() ->
   PrivDir = code:priv_dir(?MODULE),
-  ok = erlang:load_nif(filename:join(PrivDir, "plain_vulkan_drv"), 0).
+  ok = erlang:load_nif(filename:join(PrivDir, "crates/plain_vulkan/libplain_vulkan"), 0).
