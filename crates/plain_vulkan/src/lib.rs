@@ -3,6 +3,7 @@ extern crate rustler;
 //#[macro_use]
 //extern crate rustler_codegen;
 
+#[allow(unused_imports)]
 use rustler::{Env, Term, Error, Encoder};
 
 rustler_export_nifs!(
