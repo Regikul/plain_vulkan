@@ -41,8 +41,8 @@ mod atoms {
     }
 }
 
-struct InstanceHolder {
-    instance: vk_sys::Instance
+struct Holder<T> {
+    value: T
 }
 
 rustler_export_nifs!(
@@ -54,7 +54,7 @@ rustler_export_nifs!(
 );
 
 fn on_load(env: Env, _info: Term) -> bool {
-    resource_struct_init!(InstanceHolder, env);
+    resource_struct_init!(Holder<vk_sys::Instance>, env);
     true
 }
 
@@ -99,10 +99,10 @@ fn create_instance_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, 
     };
 
     let (result, instance) = unsafe {
-        let mut holder = InstanceHolder{
-            instance: mem::uninitialized()
+        let mut holder = Holder {
+            value: mem::uninitialized()
         };
-        let vk_result = vkCreateInstance(&create_info, std::ptr::null(), &mut holder.instance);
+        let vk_result = vkCreateInstance(&create_info, std::ptr::null(), &mut holder.value);
         (vk_result, holder)
     };
 
@@ -120,10 +120,10 @@ fn create_instance_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, 
 }
 
 fn destroy_instance_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
-    let inst_holder : ResourceArc<InstanceHolder> = args[0].decode()?;
+    let inst_holder : ResourceArc<Holder<vk_sys::Instance>> = args[0].decode()?;
 
     unsafe {
-        vkDestroyInstance(inst_holder.instance, std::ptr::null());
+        vkDestroyInstance(inst_holder.value, std::ptr::null());
     }
 
     Ok(atoms::ok().encode(env))
