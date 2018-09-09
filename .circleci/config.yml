@@ -10,7 +10,7 @@ jobs:
           command: apt-get update && apt-get install libvulkan-dev -y
       - run:
           name: rust compiler
-          command: curl https://sh.rustup.rs -sSf | sh
+          command: curl https://sh.rustup.rs -sSf | sh -s -- -y
       - run:
           name: compile
           command: rebar3 compile
