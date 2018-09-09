@@ -9,5 +9,8 @@ jobs:
           name: vulkan api
           command: apt-get update && apt-get install libvulkan-dev -y
       - run:
+          name: rust compiler
+          command: curl https://sh.rustup.rs -sSf | sh
+      - run:
           name: compile
           command: rebar3 compile
