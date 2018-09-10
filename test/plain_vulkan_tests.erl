@@ -13,7 +13,7 @@ flow_test() ->
        end,
   {ok, [PhysDevice | _ ]} = plain_vulkan:enumerate_physical_devices(Instance),
   _DeviceProperties = plain_vulkan:get_physical_device_properties(PhysDevice),
-%%  {ok, QueueFamilyProperties} = plain_vulkan:get_physical_device_queue_family_properties(PhysDevice),
+  {ok, _QueueFamilyProperties} = plain_vulkan:get_physical_device_queue_family_properties(PhysDevice),
 %%  ComputeQueueInfo = lists:foldl(fun find_compute_queue/2, null, QueueFamilyProperties),
 %%  #vk_device_queue_create_info{queue_family_index = ComputeFamily} = ComputeQueueInfo,
 %%  DeviceCreateInfo = #vk_device_create_info{queue_create_infos = [ComputeQueueInfo]

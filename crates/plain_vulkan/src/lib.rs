@@ -28,6 +28,11 @@ extern {
     fn vkGetPhysicalDeviceProperties(physical_device: vk_sys::PhysicalDevice
                                      ,properties: *mut vk_sys::PhysicalDeviceProperties
     );
+
+    fn vkGetPhysicalDeviceQueueFamilyProperties(physical_device: vk_sys::PhysicalDevice
+                                                ,queue_family_property_count: *mut u32
+                                                ,queue_family_properties: *mut vk_sys::QueueFamilyProperties
+    );
 }
 
 mod atoms {
@@ -48,6 +53,8 @@ mod atoms {
 
         // records
         atom vk_physical_device_properties;
+        atom vk_extent_3d;
+        atom vk_queue_family_properties;
     }
 }
 
@@ -62,6 +69,8 @@ rustler_export_nifs!(
     ,("count_physical_devices", 1, count_physical_devices_nif)
     ,("enumerate_physical_devices", 2, enumerate_physical_devices_nif)
     ,("get_physical_device_properties", 1, get_physical_device_properties_nif)
+    ,("get_physical_device_queue_family_properties_nif", 2, get_physical_device_queue_family_properties_nif)
+    ,("get_physical_device_queue_family_count", 1, get_physical_device_queue_family_count_nif)
     ],
     Some(on_load)
 );
@@ -215,4 +224,52 @@ fn get_physical_device_properties_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Re
         ,atoms::undefined()
     ).encode(env))
 
+}
+
+fn get_physical_device_queue_family_count_nif<'a>(env: Env<'a>, args: &[Term<'a>])
+    -> Result<Term<'a>, Error>
+{
+    let physical_device: vk_sys::PhysicalDevice = args[0].decode()?;
+    let count = unsafe {
+        let mut c = 0;
+        vkGetPhysicalDeviceQueueFamilyProperties(physical_device, &mut c, std::ptr::null_mut());
+        c
+    };
+
+    Ok(erl_ok(env, count))
+}
+
+fn get_physical_device_queue_family_properties_nif<'a>(env: Env<'a>, args: &[Term<'a>])
+                                                       -> Result<Term<'a>, Error>
+{
+    let physical_device: vk_sys::PhysicalDevice = args[0].decode()?;
+    let count:u32 = args[1].decode()?;
+
+    let props = unsafe {
+        let mut p = Vec::with_capacity(count as usize);
+        let mut c = count;
+        vkGetPhysicalDeviceQueueFamilyProperties(physical_device, &mut c, p.as_mut_ptr());
+        p.set_len(c as usize);
+        p
+    };
+
+    let mut result:Vec<Term> = Vec::new();
+    for (idx, prop) in props.iter().enumerate() {
+        let extent = &prop.minImageTransferGranularity;
+        let erl_extent = (atoms::vk_extent_3d()
+                          ,extent.width
+                          ,extent.height
+                          ,extent.depth
+        );
+        let erl_property = (atoms::vk_queue_family_properties()
+                            ,prop.queueFlags
+                            ,prop.queueCount
+                            ,prop.timestampValidBits
+                            ,erl_extent
+                            ,idx
+        );
+        result.push(erl_property.encode(env));
+    };
+
+    Ok(erl_ok(env, result.encode(env)))
 }
