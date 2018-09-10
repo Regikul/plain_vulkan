@@ -23,6 +23,11 @@ extern {
     fn vkDestroyInstance(instance: vk_sys::Instance
                          ,allocator: *const vk_sys::AllocationCallbacks
     );
+
+    fn vkEnumeratePhysicalDevices(instance: vk_sys::Instance
+                                  ,physical_device_count: *mut u32
+                                  ,physical_devices: *mut vk_sys::PhysicalDevice
+    ) -> vk_sys::Result;
 }
 
 mod atoms {
@@ -49,6 +54,7 @@ rustler_export_nifs!(
     "plain_vulkan",
     [("create_instance", 1, create_instance_nif)
     ,("destroy_instance", 1, destroy_instance_nif)
+    ,("count_physical_devices", 1, count_physical_devices_nif)
     ],
     Some(on_load)
 );
@@ -68,6 +74,29 @@ fn erl_ok<'a, T: Encoder>(env: Env<'a>, data: T) -> Term<'a> {
 
 fn erl_error<'a, T: Encoder>(env: Env<'a>, data: T) -> Term<'a> {
     (atoms::error(), data).encode(env)
+}
+
+#[inline]
+fn match_return<'a, T: Encoder>(env: Env<'a>,result: vk_sys::Result, data: T) -> Result<Term<'a>, Error> {
+    match result {
+        vk_sys::SUCCESS =>
+            Ok(erl_ok(env, data.encode(env))),
+        vk_sys::ERROR_OUT_OF_HOST_MEMORY =>
+            Ok(erl_error(env, atoms::out_of_host_memory())),
+        vk_sys::ERROR_OUT_OF_DEVICE_MEMORY =>
+            Ok(erl_error(env, atoms::out_of_device_memory())),
+        vk_sys::ERROR_INITIALIZATION_FAILED =>
+            Ok(erl_error(env, atoms::initialization_failed())),
+        vk_sys::ERROR_LAYER_NOT_PRESENT =>
+            Ok(erl_error(env, atoms::layers_not_present())),
+        vk_sys::ERROR_EXTENSION_NOT_PRESENT =>
+            Ok(erl_error(env, atoms::extension_not_present())),
+        vk_sys::ERROR_INCOMPATIBLE_DRIVER =>
+            Ok(erl_error(env, atoms::incompatible_driver())),
+        _ =>
+            Ok(erl_error(env, atoms::nif_error()))
+    }
+
 }
 
 fn create_instance_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
@@ -106,17 +135,7 @@ fn create_instance_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, 
         (vk_result, holder)
     };
 
-    match result {
-        vk_sys::SUCCESS => Ok(erl_ok(env, ResourceArc::new(instance).encode(env))),
-        vk_sys::ERROR_OUT_OF_HOST_MEMORY => Ok(erl_error(env, atoms::out_of_host_memory())),
-        vk_sys::ERROR_OUT_OF_DEVICE_MEMORY => Ok(erl_error(env, atoms::out_of_device_memory())),
-        vk_sys::ERROR_INITIALIZATION_FAILED => Ok(erl_error(env, atoms::initialization_failed())),
-        vk_sys::ERROR_LAYER_NOT_PRESENT => Ok(erl_error(env, atoms::layers_not_present())),
-        vk_sys::ERROR_EXTENSION_NOT_PRESENT => Ok(erl_error(env, atoms::extension_not_present())),
-        vk_sys::ERROR_INCOMPATIBLE_DRIVER => Ok(erl_error(env, atoms::incompatible_driver())),
-        _ => Ok(erl_error(env, atoms::nif_error()))
-    }
-
+    match_return(env, result, ResourceArc::new(instance))
 }
 
 fn destroy_instance_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
@@ -127,4 +146,17 @@ fn destroy_instance_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>,
     }
 
     Ok(atoms::ok().encode(env))
+}
+
+fn count_physical_devices_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
+    let inst_holder: ResourceArc<Holder<vk_sys::Instance>> = args[0].decode()?;
+
+    let (result, count) = unsafe {
+        let mut c:u32 = 0;
+        let r: vk_sys::Result;
+        r = vkEnumeratePhysicalDevices(inst_holder.value, &mut c, std::ptr::null_mut());
+        (r, c)
+    };
+
+    match_return(env, result, count)
 }
