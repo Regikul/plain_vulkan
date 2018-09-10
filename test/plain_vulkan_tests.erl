@@ -6,12 +6,12 @@
 flow_test() ->
   AppName = erlang:atom_to_binary(?MODULE, latin1),
   {ok, Instance} = plain_vulkan:create_instance(AppName),
-%%  {ok, [PhysDevice | _ ]} = plain_vulkan:enumerate_physical_devices(Instance),
   ok = case plain_vulkan:count_physical_devices(Instance) of
          {ok, _CountDev} when is_integer(_CountDev) andalso _CountDev > 0 -> ok;
          ok -> fail;
          Else -> Else
        end,
+  {ok, [_PhysDevice | _ ]} = plain_vulkan:enumerate_physical_devices(Instance),
 %%  _DeviceProperties = plain_vulkan:get_physical_device_properties(PhysDevice),
 %%  {ok, QueueFamilyProperties} = plain_vulkan:get_physical_device_queue_family_properties(PhysDevice),
 %%  ComputeQueueInfo = lists:foldl(fun find_compute_queue/2, null, QueueFamilyProperties),

@@ -37,6 +37,7 @@ mod atoms {
         atom nif_error;
 
         // Vulkan
+        atom incomplete;
         atom out_of_host_memory;
         atom out_of_device_memory;
         atom initialization_failed;
@@ -55,6 +56,7 @@ rustler_export_nifs!(
     [("create_instance", 1, create_instance_nif)
     ,("destroy_instance", 1, destroy_instance_nif)
     ,("count_physical_devices", 1, count_physical_devices_nif)
+    ,("enumerate_physical_devices", 2, enumerate_physical_devices_nif)
     ],
     Some(on_load)
 );
@@ -64,14 +66,17 @@ fn on_load(env: Env, _info: Term) -> bool {
     true
 }
 
+#[inline]
 fn vk_make_version(major:u32, minor: u32, patch: u32) -> u32 {
     ((major) << 22) | ((minor) << 12) | (patch)
 }
 
+#[inline]
 fn erl_ok<'a, T: Encoder>(env: Env<'a>, data: T) -> Term<'a> {
     (atoms::ok(), data).encode(env)
 }
 
+#[inline]
 fn erl_error<'a, T: Encoder>(env: Env<'a>, data: T) -> Term<'a> {
     (atoms::error(), data).encode(env)
 }
@@ -81,6 +86,8 @@ fn match_return<'a, T: Encoder>(env: Env<'a>,result: vk_sys::Result, data: T) ->
     match result {
         vk_sys::SUCCESS =>
             Ok(erl_ok(env, data.encode(env))),
+        vk_sys::INCOMPLETE =>
+            Ok((atoms::incomplete(), data).encode(env)),
         vk_sys::ERROR_OUT_OF_HOST_MEMORY =>
             Ok(erl_error(env, atoms::out_of_host_memory())),
         vk_sys::ERROR_OUT_OF_DEVICE_MEMORY =>
@@ -159,4 +166,18 @@ fn count_physical_devices_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Ter
     };
 
     match_return(env, result, count)
+}
+
+fn enumerate_physical_devices_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
+    let inst_holder: ResourceArc<Holder<vk_sys::Instance>> = args[0].decode()?;
+    let mut count: u32 = args[1].decode()?;
+
+    let (result, devices) = unsafe {
+        let r: vk_sys::Result;
+        let mut pdevices: Vec<vk_sys::PhysicalDevice> = vec![mem::uninitialized(); count as usize];
+        r = vkEnumeratePhysicalDevices(inst_holder.value, &mut count, pdevices.as_mut_ptr());
+        (r, pdevices)
+    };
+
+    match_return(env, result, devices)
 }
