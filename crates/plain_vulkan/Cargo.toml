@@ -9,7 +9,8 @@ crate_type = ["dylib"]
 
 
 [dependencies]
-rustler = "0.18.0"
+#rustler = "0.18.0"
+rustler = {git = "https://github.com/Regikul/rustler", branch = "extend_nif_decoder_for_tuple"}
 rustler_codegen = "0.18.0"
 lazy_static = "1.0.0"
 vk-sys = "0.3.3"

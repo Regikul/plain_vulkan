@@ -2,15 +2,11 @@ extern crate vk_sys;
 #[macro_use]
 extern crate rustler;
 #[macro_use]
-extern crate rustler_codegen;
-#[macro_use]
 extern crate lazy_static;
 
-#[allow(unused_imports)]
 use rustler::{Env, Term, Error, Encoder};
-#[allow(unused_imports)]
 use rustler::resource::ResourceArc;
-use std::ffi::{CString, NulError};
+use std::ffi::{CString, CStr, NulError};
 use std::mem;
 
 #[link(name = "vulkan")]
@@ -28,12 +24,17 @@ extern {
                                   ,physical_device_count: *mut u32
                                   ,physical_devices: *mut vk_sys::PhysicalDevice
     ) -> vk_sys::Result;
+
+    fn vkGetPhysicalDeviceProperties(physical_device: vk_sys::PhysicalDevice
+                                     ,properties: *mut vk_sys::PhysicalDeviceProperties
+    );
 }
 
 mod atoms {
     rustler_atoms! {
         atom ok;
         atom error;
+        atom undefined;
         atom nif_error;
 
         // Vulkan
@@ -44,6 +45,9 @@ mod atoms {
         atom layers_not_present;
         atom extension_not_present;
         atom incompatible_driver;
+
+        // records
+        atom vk_physical_device_properties;
     }
 }
 
@@ -57,6 +61,7 @@ rustler_export_nifs!(
     ,("destroy_instance", 1, destroy_instance_nif)
     ,("count_physical_devices", 1, count_physical_devices_nif)
     ,("enumerate_physical_devices", 2, enumerate_physical_devices_nif)
+    ,("get_physical_device_properties", 1, get_physical_device_properties_nif)
     ],
     Some(on_load)
 );
@@ -174,10 +179,40 @@ fn enumerate_physical_devices_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result
 
     let (result, devices) = unsafe {
         let r: vk_sys::Result;
-        let mut pdevices: Vec<vk_sys::PhysicalDevice> = vec![mem::uninitialized(); count as usize];
+        let mut pdevices: Vec<vk_sys::PhysicalDevice> = vec![mem::zeroed(); count as usize];
         r = vkEnumeratePhysicalDevices(inst_holder.value, &mut count, pdevices.as_mut_ptr());
         (r, pdevices)
     };
 
     match_return(env, result, devices)
+}
+
+fn get_physical_device_properties_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
+    let physical_device: vk_sys::PhysicalDevice = args[0].decode()?;
+    let props = unsafe {
+        let mut p: vk_sys::PhysicalDeviceProperties = mem::zeroed();
+
+        vkGetPhysicalDeviceProperties(physical_device, &mut p);
+        p
+    };
+
+    let dev_name = match unsafe {CStr::from_ptr(props.deviceName.as_ptr())}.to_str() {
+        Ok(string) => string,
+        Err(_) => return Err(Error::Atom("nif_error"))
+    };
+
+    let cache_uuid = props.pipelineCacheUUID.as_ref();
+
+    Ok((atoms::vk_physical_device_properties()
+        ,props.apiVersion
+        ,props.driverVersion
+        ,props.vendorID
+        ,props.deviceID
+        ,props.deviceType
+        ,dev_name
+        ,cache_uuid
+        ,atoms::undefined()
+        ,atoms::undefined()
+    ).encode(env))
+
 }
