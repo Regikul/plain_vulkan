@@ -19,9 +19,10 @@ flow_test() ->
                                             ,enabled_features = #vk_physical_device_features{}
                                            },
   {ok, Device} = plain_vulkan:create_device(PhysDevice, DeviceCreateInfo),
-%%  #vk_device_queue_create_info{queue_family_index = ComputeFamily} = ComputeQueueInfo,
-%%  _ComputeQueue = plain_vulkan:get_device_queue(Device, ComputeFamily, 0),
-%%
+  #vk_device_queue_create_info{queue_family_index = ComputeFamily} = ComputeQueueInfo,
+  ComputeQueue = plain_vulkan:get_device_queue(Device, ComputeFamily, 0),
+  true = is_reference(ComputeQueue),
+
 %%  CommandPoolInfo = #vk_command_pool_create_info{flags = [transient, reset], queue_family_index = ComputeFamily},
 %%  {ok, CommandPool} = plain_vulkan:create_command_pool(Device, CommandPoolInfo),
 %%

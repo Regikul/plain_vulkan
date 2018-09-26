@@ -47,6 +47,12 @@ extern {
     fn vkDestroyDevice(device: vk_sys::Device
                        ,allocator: *const vk_sys::AllocationCallbacks
     );
+
+    fn vkGetDeviceQueue(device: vk_sys::Device
+                        ,queue_family_index: u32
+                        ,queue_index: u32
+                        ,queue: *mut vk_sys::Queue
+    );
 }
 
 mod atoms {
@@ -126,6 +132,7 @@ rustler_export_nifs!(
     ,("create_device", 2, create_device_nif)
     ,("device_wait_idle", 1, device_wait_idle_nif)
     ,("destroy_device", 1, destroy_device_nif)
+    ,("get_device_queue", 3, get_device_queue_nif)
     ],
     Some(on_load)
 );
@@ -138,9 +145,14 @@ struct DeviceHolder {
     pub value : vk_sys::Device
 }
 
+struct QueueHolder {
+    pub value : vk_sys::Queue
+}
+
 fn on_load(env: Env, _info: Term) -> bool {
     resource_struct_init!(InstanceHolder, env);
     resource_struct_init!(DeviceHolder, env);
+    resource_struct_init!(QueueHolder, env);
     true
 }
 
@@ -427,7 +439,7 @@ fn create_device_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Er
     };
 
     let (res, device) = unsafe {
-        let mut unsafe_device : DeviceHolder = std::mem::uninitialized();
+        let mut unsafe_device : DeviceHolder = mem::uninitialized();
         let result = vkCreateDevice(physical_device, &create_info, std::ptr::null(), &mut unsafe_device.value);
         (result, unsafe_device)
     };
@@ -453,4 +465,18 @@ fn destroy_device_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, E
     };
 
     Ok(atoms::ok().encode(env))
+}
+
+fn get_device_queue_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
+    let logi_device: ResourceArc<DeviceHolder> = args[0].decode()?;
+    let queue_family: u32 = args[1].decode()?;
+    let queue_index: u32 = args[2].decode()?;
+
+    let queue = unsafe {
+        let mut q:QueueHolder = mem::uninitialized();
+        vkGetDeviceQueue(logi_device.value, queue_family, queue_index, &mut q.value);
+        q
+    };
+
+    Ok(ResourceArc::new(queue).encode(env))
 }
