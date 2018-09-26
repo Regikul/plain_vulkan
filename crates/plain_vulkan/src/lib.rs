@@ -408,6 +408,9 @@ fn create_device_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Er
     };
 
     for idx in 0..device_create_info.queue_create_infos.len() {
+        queue_create_infos[idx].sType = vk_sys::STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+        queue_create_infos[idx].flags = 0;
+        queue_create_infos[idx].pNext = std::ptr::null();
         queue_create_infos[idx].queueFamilyIndex = device_create_info.queue_create_infos[idx].queue_family_index;
         queue_create_infos[idx].queueCount = device_create_info.queue_create_infos[idx].queue_count;
         queue_create_infos[idx].pQueuePriorities = device_create_info.queue_create_infos[idx].queue_priorities.as_ptr();
