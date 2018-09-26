@@ -53,6 +53,17 @@ extern {
                         ,queue_index: u32
                         ,queue: *mut vk_sys::Queue
     );
+
+    fn vkCreateCommandPool(device: vk_sys::Device
+                           ,create_info: *const vk_sys::CommandPoolCreateInfo
+                           ,allocator: *const vk_sys::AllocationCallbacks
+                           ,command_pool: *mut vk_sys::CommandPool
+    ) -> vk_sys::Result;
+
+    fn vkDestroyCommandPool(device: vk_sys::Device
+                            ,command_pool: vk_sys::CommandPool
+                            ,allocator: *const vk_sys::AllocationCallbacks
+    );
 }
 
 mod atoms {
@@ -120,6 +131,13 @@ struct ErlVkDeviceCreateInfo {
     pub enabled_features : ErlVkPhysicalDeviceFeatures
 }
 
+#[derive(NifRecord)]
+#[tag="vk_command_pool_create_info"]
+struct ErlVkCommandPoolCreateInfo {
+    flags: vk_sys::CommandPoolCreateFlags,
+    queue_family_index: u32
+}
+
 rustler_export_nifs!(
     "plain_vulkan",
     [("create_instance", 1, create_instance_nif)
@@ -133,6 +151,8 @@ rustler_export_nifs!(
     ,("device_wait_idle", 1, device_wait_idle_nif)
     ,("destroy_device", 1, destroy_device_nif)
     ,("get_device_queue", 3, get_device_queue_nif)
+    ,("create_command_pool_nif", 2, create_command_pool_nif)
+    ,("destroy_command_pool", 2, destroy_command_pool_nif)
     ],
     Some(on_load)
 );
@@ -149,10 +169,15 @@ struct QueueHolder {
     pub value : vk_sys::Queue
 }
 
+struct CommandPoolHolder {
+    pub value : vk_sys::CommandPool
+}
+
 fn on_load(env: Env, _info: Term) -> bool {
     resource_struct_init!(InstanceHolder, env);
     resource_struct_init!(DeviceHolder, env);
     resource_struct_init!(QueueHolder, env);
+    resource_struct_init!(CommandPoolHolder, env);
     true
 }
 
@@ -479,4 +504,36 @@ fn get_device_queue_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>,
     };
 
     Ok(ResourceArc::new(queue).encode(env))
+}
+
+fn create_command_pool_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
+    let logi_device: ResourceArc<DeviceHolder> = args[0].decode()?;
+    let erl_create_info: ErlVkCommandPoolCreateInfo = args[1].decode()?;
+
+    let create_info = vk_sys::CommandPoolCreateInfo{
+        sType: vk_sys::STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+        pNext: std::ptr::null(),
+        flags: erl_create_info.flags,
+        queueFamilyIndex: erl_create_info.queue_family_index
+    };
+
+    let (result, command_pool) = unsafe {
+        let mut pool : CommandPoolHolder = mem::uninitialized();
+
+        let r = vkCreateCommandPool(logi_device.value, &create_info, std::ptr::null(), &mut pool.value);
+        (r, pool)
+    };
+
+    match_return(env, result, ResourceArc::new(command_pool))
+}
+
+fn destroy_command_pool_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
+    let logi_device: ResourceArc<DeviceHolder> = args[0].decode()?;
+    let pool: ResourceArc<CommandPoolHolder> = args[1].decode()?;
+
+    unsafe {
+        vkDestroyCommandPool(logi_device.value, pool.value, std::ptr::null());
+    }
+
+    Ok(atoms::ok().encode(env))
 }
