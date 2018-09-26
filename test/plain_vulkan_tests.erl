@@ -26,11 +26,11 @@ flow_test() ->
   CommandPoolInfo = #vk_command_pool_create_info{flags = [transient, reset], queue_family_index = ComputeFamily},
   {ok, CommandPool} = plain_vulkan:create_command_pool(Device, CommandPoolInfo),
 
-%%  BufferInfo = #vk_buffer_create_info{queue_family_indices = [ComputeFamily]
-%%                                      ,size = 1024
-%%                                      ,usage = [transfer_src, transfer_dst]
-%%                                     },
-%%  {ok, Buffer} = plain_vulkan:create_buffer(Device, BufferInfo),
+  BufferInfo = #vk_buffer_create_info{queue_family_indices = [ComputeFamily]
+                                      ,size = 1024
+                                      ,usage = [transfer_src, transfer_dst]
+                                     },
+  {ok, Buffer} = plain_vulkan:create_buffer(Device, BufferInfo),
 %%  #vk_memory_requirements{size = MemReqSize
 %%                          ,memory_type_flags = MemTypeFlags
 %%                         } = plain_vulkan:get_buffer_memory_requirements(Device, Buffer),
@@ -67,7 +67,7 @@ flow_test() ->
 %%  ok = plain_vulkan:destroy_descriptor_pool(Device, Pool),
 %%  ok = plain_vulkan:destroy_descriptor_set_layout(Device, Layout),
 %%  ok = plain_vulkan:free_memory(Device, Memory),
-%%  ok = plain_vulkan:destroy_buffer(Device, Buffer),
+  ok = plain_vulkan:destroy_buffer(Device, Buffer),
   ok = plain_vulkan:destroy_command_pool(Device, CommandPool),
 
   ok = plain_vulkan:device_wait_idle(Device),

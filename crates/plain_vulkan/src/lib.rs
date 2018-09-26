@@ -64,6 +64,17 @@ extern {
                             ,command_pool: vk_sys::CommandPool
                             ,allocator: *const vk_sys::AllocationCallbacks
     );
+
+    fn vkCreateBuffer(device: vk_sys::Device
+                      ,create_info: *const vk_sys::BufferCreateInfo
+                      ,allocator: *const vk_sys::AllocationCallbacks
+                      ,buffer: *mut vk_sys::Buffer
+    ) -> vk_sys::Result;
+
+    fn vkDestroyBuffer(device: vk_sys::Device
+                       ,buffer: vk_sys::Buffer
+                       ,allocator: *const vk_sys::AllocationCallbacks
+    );
 }
 
 mod atoms {
@@ -138,6 +149,16 @@ struct ErlVkCommandPoolCreateInfo {
     queue_family_index: u32
 }
 
+#[derive(NifRecord)]
+#[tag="vk_buffer_create_info"]
+struct ErlVkBufferCreateInfo {
+    flags: vk_sys::BufferCreateFlags,
+    size: vk_sys::DeviceSize,
+    usage: vk_sys::BufferUsageFlags,
+    sharing_mode: vk_sys::SharingMode,
+    queue_family_indices: Vec<u32>
+}
+
 rustler_export_nifs!(
     "plain_vulkan",
     [("create_instance", 1, create_instance_nif)
@@ -153,6 +174,8 @@ rustler_export_nifs!(
     ,("get_device_queue", 3, get_device_queue_nif)
     ,("create_command_pool_nif", 2, create_command_pool_nif)
     ,("destroy_command_pool", 2, destroy_command_pool_nif)
+    ,("create_buffer_nif", 2, create_buffer_nif)
+    ,("destroy_buffer", 2, destroy_buffer_nif)
     ],
     Some(on_load)
 );
@@ -173,11 +196,16 @@ struct CommandPoolHolder {
     pub value : vk_sys::CommandPool
 }
 
+struct BufferHolder {
+    pub value: vk_sys::Buffer
+}
+
 fn on_load(env: Env, _info: Term) -> bool {
     resource_struct_init!(InstanceHolder, env);
     resource_struct_init!(DeviceHolder, env);
     resource_struct_init!(QueueHolder, env);
     resource_struct_init!(CommandPoolHolder, env);
+    resource_struct_init!(BufferHolder, env);
     true
 }
 
@@ -534,6 +562,41 @@ fn destroy_command_pool_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<
     unsafe {
         vkDestroyCommandPool(logi_device.value, pool.value, std::ptr::null());
     }
+
+    Ok(atoms::ok().encode(env))
+}
+
+fn create_buffer_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
+    let logi_device: ResourceArc<DeviceHolder> = args[0].decode()?;
+    let erl_create_info: ErlVkBufferCreateInfo = args[1].decode()?;
+
+    let create_info = vk_sys::BufferCreateInfo {
+        sType: vk_sys::STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+        pNext: std::ptr::null(),
+        flags: erl_create_info.flags,
+        size: erl_create_info.size,
+        usage: erl_create_info.usage,
+        sharingMode: erl_create_info.sharing_mode,
+        queueFamilyIndexCount: erl_create_info.queue_family_indices.len() as u32,
+        pQueueFamilyIndices: erl_create_info.queue_family_indices.as_ptr()
+    };
+
+    let (result, buffer) = unsafe {
+        let mut b: BufferHolder = mem::uninitialized();
+        let r = vkCreateBuffer(logi_device.value, &create_info, std::ptr::null(), &mut b.value);
+        (r, b)
+    };
+
+    match_return(env, result, ResourceArc::new(buffer))
+}
+
+fn destroy_buffer_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
+    let logi_device: ResourceArc<DeviceHolder> = args[0].decode()?;
+    let buffer: ResourceArc<BufferHolder> = args[1].decode()?;
+
+    unsafe {
+        vkDestroyBuffer(logi_device.value, buffer.value, std::ptr::null());
+    };
 
     Ok(atoms::ok().encode(env))
 }
