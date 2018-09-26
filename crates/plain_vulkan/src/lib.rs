@@ -3,6 +3,8 @@ extern crate vk_sys;
 extern crate rustler;
 #[macro_use]
 extern crate lazy_static;
+#[macro_use]
+extern crate rustler_codegen;
 
 use rustler::{Env, Term, Error, Encoder};
 use rustler::resource::ResourceArc;
@@ -33,6 +35,18 @@ extern {
                                                 ,queue_family_property_count: *mut u32
                                                 ,queue_family_properties: *mut vk_sys::QueueFamilyProperties
     );
+
+    fn vkCreateDevice(physical_device: vk_sys::PhysicalDevice
+                      ,create_info: *const vk_sys::DeviceCreateInfo
+                      ,allocator: *const vk_sys::AllocationCallbacks
+                      ,device: *mut vk_sys::Device
+    ) -> vk_sys::Result;
+
+    fn vkDeviceWaitIdle(device: vk_sys::Device) -> vk_sys::Result;
+
+    fn vkDestroyDevice(device: vk_sys::Device
+                       ,allocator: *const vk_sys::AllocationCallbacks
+    );
 }
 
 mod atoms {
@@ -58,8 +72,46 @@ mod atoms {
     }
 }
 
-struct Holder<T> {
-    value: T
+#[derive(NifRecord)]
+#[tag="vk_physical_device_features"]
+struct ErlVkPhysicalDeviceFeatures {
+    pub robust_buffer_access: bool, pub full_draw_index_uint32: bool, pub image_cube_array: bool,
+    pub independent_blend: bool, pub geometry_shader: bool, pub tessellation_shader: bool,
+    pub sample_rate_shading: bool, pub dual_src_blend: bool, pub logic_op: bool,
+    pub multi_draw_indirect: bool, pub draw_indirect_first_instance: bool, pub depth_clamp: bool,
+    pub depth_bias_clamp: bool, pub fill_mode_non_solid: bool, pub depth_bounds: bool,
+    pub wide_lines: bool, pub large_points: bool, pub alpha_to_one: bool,
+    pub multi_viewport: bool, pub sampler_anisotropy: bool, pub texture_compression_etc2: bool,
+    pub texture_compression_astc_ldr: bool, pub texture_compression_bc: bool,
+    pub occlusion_query_precise: bool, pub pipeline_statistics_query: bool,
+    pub vertex_pipeline_stores_and_atomics: bool, pub fragment_stores_and_atomics: bool,
+    pub shader_tessellation_and_geometry_point_size: bool, pub shader_image_gather_extended: bool,
+    pub shader_storage_image_extended_formats: bool, pub shader_storage_image_multisample: bool,
+    pub shader_storage_image_read_without_format: bool, pub shader_storage_image_write_without_format: bool,
+    pub shader_uniform_buffer_array_dynamic_indexing: bool, pub shader_sampled_image_array_dynamic_indexing: bool,
+    pub shader_storage_buffer_array_dynamic_indexing: bool, pub shader_storage_image_array_dynamic_indexing: bool,
+    pub shader_clip_distance: bool, pub shader_cull_distance: bool, pub shader_float64: bool,
+    pub shader_int64: bool, pub shader_int16: bool, pub shader_resource_residency: bool,
+    pub shader_resource_min_lod: bool, pub sparse_binding: bool, pub sparse_residency_buffer: bool,
+    pub sparse_residency_image_2d: bool, pub sparse_residency_image_3d: bool,
+    pub sparse_residency2_samples: bool, pub sparse_residency4_samples: bool,
+    pub sparse_residency8_samples: bool, pub sparse_residency16_samples: bool,
+    pub sparse_residency_aliased: bool, pub variable_multisample_rate: bool, pub inherited_queries: bool
+}
+
+#[derive(NifRecord)]
+#[tag="vk_device_queue_create_info"]
+struct ErlVkDeviceQueueCreateInfo {
+    pub queue_family_index : u32,
+    pub queue_count : u32,
+    pub queue_priorities : Vec<f32>
+}
+
+#[derive(NifRecord)]
+#[tag="vk_device_create_info"]
+struct ErlVkDeviceCreateInfo {
+    pub queue_create_infos : Vec<ErlVkDeviceQueueCreateInfo>,
+    pub enabled_features : ErlVkPhysicalDeviceFeatures
 }
 
 rustler_export_nifs!(
@@ -71,12 +123,24 @@ rustler_export_nifs!(
     ,("get_physical_device_properties", 1, get_physical_device_properties_nif)
     ,("get_physical_device_queue_family_properties_nif", 2, get_physical_device_queue_family_properties_nif)
     ,("get_physical_device_queue_family_count", 1, get_physical_device_queue_family_count_nif)
+    ,("create_device", 2, create_device_nif)
+    ,("device_wait_idle", 1, device_wait_idle_nif)
+    ,("destroy_device", 1, destroy_device_nif)
     ],
     Some(on_load)
 );
 
+struct InstanceHolder {
+    pub value : vk_sys::Instance
+}
+
+struct DeviceHolder {
+    pub value : vk_sys::Device
+}
+
 fn on_load(env: Env, _info: Term) -> bool {
-    resource_struct_init!(Holder<vk_sys::Instance>, env);
+    resource_struct_init!(InstanceHolder, env);
+    resource_struct_init!(DeviceHolder, env);
     true
 }
 
@@ -96,7 +160,7 @@ fn erl_error<'a, T: Encoder>(env: Env<'a>, data: T) -> Term<'a> {
 }
 
 #[inline]
-fn match_return<'a, T: Encoder>(env: Env<'a>,result: vk_sys::Result, data: T) -> Result<Term<'a>, Error> {
+fn match_return<'a, T: Encoder>(env: Env<'a>, result: vk_sys::Result, data: T) -> Result<Term<'a>, Error> {
     match result {
         vk_sys::SUCCESS =>
             Ok(erl_ok(env, data.encode(env))),
@@ -149,7 +213,7 @@ fn create_instance_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, 
     };
 
     let (result, instance) = unsafe {
-        let mut holder = Holder {
+        let mut holder = InstanceHolder {
             value: mem::uninitialized()
         };
         let vk_result = vkCreateInstance(&create_info, std::ptr::null(), &mut holder.value);
@@ -160,7 +224,7 @@ fn create_instance_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, 
 }
 
 fn destroy_instance_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
-    let inst_holder : ResourceArc<Holder<vk_sys::Instance>> = args[0].decode()?;
+    let inst_holder : ResourceArc<InstanceHolder> = args[0].decode()?;
 
     unsafe {
         vkDestroyInstance(inst_holder.value, std::ptr::null());
@@ -170,7 +234,7 @@ fn destroy_instance_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>,
 }
 
 fn count_physical_devices_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
-    let inst_holder: ResourceArc<Holder<vk_sys::Instance>> = args[0].decode()?;
+    let inst_holder: ResourceArc<InstanceHolder> = args[0].decode()?;
 
     let (result, count) = unsafe {
         let mut c:u32 = 0;
@@ -183,7 +247,7 @@ fn count_physical_devices_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Ter
 }
 
 fn enumerate_physical_devices_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
-    let inst_holder: ResourceArc<Holder<vk_sys::Instance>> = args[0].decode()?;
+    let inst_holder: ResourceArc<InstanceHolder> = args[0].decode()?;
     let mut count: u32 = args[1].decode()?;
 
     let (result, devices) = unsafe {
@@ -272,4 +336,118 @@ fn get_physical_device_queue_family_properties_nif<'a>(env: Env<'a>, args: &[Ter
     };
 
     Ok(erl_ok(env, result.encode(env)))
+}
+
+fn create_device_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
+    let physical_device: vk_sys::PhysicalDevice = args[0].decode()?;
+    let device_create_info : ErlVkDeviceCreateInfo = args[1].decode()?;
+
+    let device_features = vk_sys::PhysicalDeviceFeatures {
+        robustBufferAccess : device_create_info.enabled_features.robust_buffer_access as u32,
+        fullDrawIndexUint32 : device_create_info.enabled_features.full_draw_index_uint32 as u32,
+        imageCubeArray : device_create_info.enabled_features.image_cube_array as u32,
+        independentBlend : device_create_info.enabled_features.independent_blend as u32,
+        geometryShader : device_create_info.enabled_features.geometry_shader as u32,
+        tessellationShader : device_create_info.enabled_features.tessellation_shader as u32,
+        sampleRateShading : device_create_info.enabled_features.sample_rate_shading as u32,
+        dualSrcBlend : device_create_info.enabled_features.dual_src_blend as u32,
+        logicOp : device_create_info.enabled_features.logic_op as u32,
+        multiDrawIndirect : device_create_info.enabled_features.multi_draw_indirect as u32,
+        drawIndirectFirstInstance : device_create_info.enabled_features.draw_indirect_first_instance as u32,
+        depthClamp : device_create_info.enabled_features.depth_clamp as u32,
+        depthBiasClamp : device_create_info.enabled_features.depth_bias_clamp as u32,
+        fillModeNonSolid : device_create_info.enabled_features.fill_mode_non_solid as u32,
+        depthBounds : device_create_info.enabled_features.depth_bounds as u32,
+        wideLines : device_create_info.enabled_features.wide_lines as u32,
+        largePoints : device_create_info.enabled_features.large_points as u32,
+        alphaToOne : device_create_info.enabled_features.alpha_to_one as u32,
+        multiViewport : device_create_info.enabled_features.multi_viewport as u32,
+        samplerAnisotropy : device_create_info.enabled_features.sampler_anisotropy as u32,
+        textureCompressionETC2 : device_create_info.enabled_features.texture_compression_etc2 as u32,
+        textureCompressionASTC_LDR : device_create_info.enabled_features.texture_compression_astc_ldr as u32,
+        textureCompressionBC : device_create_info.enabled_features.texture_compression_bc as u32,
+        occlusionQueryPrecise : device_create_info.enabled_features.occlusion_query_precise as u32,
+        pipelineStatisticsQuery : device_create_info.enabled_features.pipeline_statistics_query as u32,
+        vertexPipelineStoresAndAtomics : device_create_info.enabled_features.vertex_pipeline_stores_and_atomics as u32,
+        fragmentStoresAndAtomics : device_create_info.enabled_features.fragment_stores_and_atomics as u32,
+        shaderTessellationAndGeometryPointSize : device_create_info.enabled_features.shader_tessellation_and_geometry_point_size as u32,
+        shaderImageGatherExtended : device_create_info.enabled_features.shader_image_gather_extended as u32,
+        shaderStorageImageExtendedFormats : device_create_info.enabled_features.shader_storage_image_extended_formats as u32,
+        shaderStorageImageMultisample : device_create_info.enabled_features.shader_storage_image_multisample as u32,
+        shaderStorageImageReadWithoutFormat : device_create_info.enabled_features.shader_storage_image_read_without_format as u32,
+        shaderStorageImageWriteWithoutFormat : device_create_info.enabled_features.shader_storage_image_write_without_format as u32,
+        shaderUniformBufferArrayDynamicIndexing : device_create_info.enabled_features.shader_uniform_buffer_array_dynamic_indexing as u32,
+        shaderSampledImageArrayDynamicIndexing : device_create_info.enabled_features.shader_sampled_image_array_dynamic_indexing as u32,
+        shaderStorageBufferArrayDynamicIndexing : device_create_info.enabled_features.shader_storage_buffer_array_dynamic_indexing as u32,
+        shaderStorageImageArrayDynamicIndexing : device_create_info.enabled_features.shader_storage_image_array_dynamic_indexing as u32,
+        shaderClipDistance : device_create_info.enabled_features.shader_clip_distance as u32,
+        shaderCullDistance : device_create_info.enabled_features.shader_cull_distance as u32,
+        shaderf3264 : device_create_info.enabled_features.shader_float64 as u32,
+        shaderInt64 : device_create_info.enabled_features.shader_int64 as u32,
+        shaderInt16 : device_create_info.enabled_features.shader_int16 as u32,
+        shaderResourceResidency : device_create_info.enabled_features.shader_resource_residency as u32,
+        shaderResourceMinLod : device_create_info.enabled_features.shader_resource_min_lod as u32,
+        sparseBinding : device_create_info.enabled_features.sparse_binding as u32,
+        sparseResidencyBuffer : device_create_info.enabled_features.sparse_residency_buffer as u32,
+        sparseResidencyImage2D : device_create_info.enabled_features.sparse_residency_image_2d as u32,
+        sparseResidencyImage3D : device_create_info.enabled_features.sparse_residency_image_3d as u32,
+        sparseResidency2Samples : device_create_info.enabled_features.sparse_residency2_samples as u32,
+        sparseResidency4Samples : device_create_info.enabled_features.sparse_residency4_samples as u32,
+        sparseResidency8Samples : device_create_info.enabled_features.sparse_residency8_samples as u32,
+        sparseResidency16Samples : device_create_info.enabled_features.sparse_residency16_samples as u32,
+        sparseResidencyAliased : device_create_info.enabled_features.sparse_residency_aliased as u32,
+        variableMultisampleRate : device_create_info.enabled_features.variable_multisample_rate as u32,
+        inheritedQueries : device_create_info.enabled_features.inherited_queries as u32
+    };
+    let len = device_create_info.queue_create_infos.len();
+    let mut queue_create_infos : Vec<vk_sys::DeviceQueueCreateInfo> = Vec::new();
+
+    unsafe {
+        queue_create_infos.reserve(len);
+        queue_create_infos.set_len(len);
+    };
+
+    for idx in 0..device_create_info.queue_create_infos.len() {
+        queue_create_infos[idx].queueFamilyIndex = device_create_info.queue_create_infos[idx].queue_family_index;
+        queue_create_infos[idx].queueCount = device_create_info.queue_create_infos[idx].queue_count;
+        queue_create_infos[idx].pQueuePriorities = device_create_info.queue_create_infos[idx].queue_priorities.as_ptr();
+    }
+
+    let create_info = unsafe {
+        let mut unsafe_create_info : vk_sys::DeviceCreateInfo = std::mem::zeroed();
+        unsafe_create_info.sType = vk_sys::STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+        unsafe_create_info.queueCreateInfoCount = len as u32;
+        unsafe_create_info.pQueueCreateInfos = queue_create_infos.as_ptr();
+        unsafe_create_info.pEnabledFeatures = &device_features;
+
+        unsafe_create_info
+    };
+
+    let (res, device) = unsafe {
+        let mut unsafe_device : DeviceHolder = std::mem::uninitialized();
+        let result = vkCreateDevice(physical_device, &create_info, std::ptr::null(), &mut unsafe_device.value);
+        (result, unsafe_device)
+    };
+
+    match_return(env, res, ResourceArc::new(device))
+}
+
+fn device_wait_idle_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
+    let logi_device: ResourceArc<DeviceHolder> = args[0].decode()?;
+
+    unsafe {
+        vkDeviceWaitIdle(logi_device.value);
+    }
+
+    Ok(atoms::ok().encode(env))
+}
+
+fn destroy_device_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
+    let logi_device: ResourceArc<DeviceHolder> = args[0].decode()?;
+
+    unsafe {
+        vkDestroyDevice(logi_device.value, std::ptr::null())
+    };
+
+    Ok(atoms::ok().encode(env))
 }

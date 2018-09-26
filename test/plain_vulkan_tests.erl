@@ -13,13 +13,13 @@ flow_test() ->
        end,
   {ok, [PhysDevice | _ ]} = plain_vulkan:enumerate_physical_devices(Instance),
   _DeviceProperties = plain_vulkan:get_physical_device_properties(PhysDevice),
-  {ok, _QueueFamilyProperties} = plain_vulkan:get_physical_device_queue_family_properties(PhysDevice),
-%%  ComputeQueueInfo = lists:foldl(fun find_compute_queue/2, null, QueueFamilyProperties),
+  {ok, QueueFamilyProperties} = plain_vulkan:get_physical_device_queue_family_properties(PhysDevice),
+  ComputeQueueInfo = lists:foldl(fun find_compute_queue/2, null, QueueFamilyProperties),
+  DeviceCreateInfo = #vk_device_create_info{queue_create_infos = [ComputeQueueInfo]
+                                            ,enabled_features = #vk_physical_device_features{}
+                                           },
+  {ok, Device} = plain_vulkan:create_device(PhysDevice, DeviceCreateInfo),
 %%  #vk_device_queue_create_info{queue_family_index = ComputeFamily} = ComputeQueueInfo,
-%%  DeviceCreateInfo = #vk_device_create_info{queue_create_infos = [ComputeQueueInfo]
-%%                                            ,enabled_features = #vk_physical_device_features{}
-%%                                           },
-%%  {ok, Device} = plain_vulkan:create_device(PhysDevice, DeviceCreateInfo),
 %%  _ComputeQueue = plain_vulkan:get_device_queue(Device, ComputeFamily, 0),
 %%
 %%  CommandPoolInfo = #vk_command_pool_create_info{flags = [transient, reset], queue_family_index = ComputeFamily},
@@ -69,8 +69,8 @@ flow_test() ->
 %%  ok = plain_vulkan:destroy_buffer(Device, Buffer),
 %%  ok = plain_vulkan:destroy_command_pool(Device, CommandPool),
 %%
-%%  ok = plain_vulkan:device_wait_idle(Device),
-%%  ok = plain_vulkan:destroy_device(Device),
+  ok = plain_vulkan:device_wait_idle(Device),
+  ok = plain_vulkan:destroy_device(Device),
   ok = plain_vulkan:destroy_instance(Instance).
 
 %%find_memory_of_type(MemReqFlags) ->
@@ -83,13 +83,13 @@ flow_test() ->
 %%      Index
 %%  end.
 %%
-%%find_compute_queue(#vk_queue_family_properties{queueFlags = Flags, familyIndex = Index}, null) ->
-%%  case lists:member(compute, Flags) of
-%%    'true' -> #vk_device_queue_create_info{queue_count = 1, queue_family_index = Index, queue_priorities = [0.0]};
-%%    'false' -> null
-%%  end;
-%%find_compute_queue(_, #vk_device_queue_create_info{} = Info) ->
-%%  Info.
+find_compute_queue(#vk_queue_family_properties{queueFlags = Flags, familyIndex = Index}, null) ->
+  case lists:member(compute, Flags) of
+    'true' -> #vk_device_queue_create_info{queue_count = 1, queue_family_index = Index, queue_priorities = [0.0]};
+    'false' -> null
+  end;
+find_compute_queue(_, #vk_device_queue_create_info{} = Info) ->
+  Info.
 
 lists_to_bits_test() ->
   Desc = [{one, 1}, {two, 2}, {four, 4}],
