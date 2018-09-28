@@ -102,6 +102,17 @@ extern {
                           ,memory: vk_sys::DeviceMemory
                           ,offset: vk_sys::DeviceSize
     ) -> vk_sys::Result;
+
+    fn vkCreateDescriptorSetLayout(device: vk_sys::Device
+                                   ,create_info: *const vk_sys::DescriptorSetLayoutCreateInfo
+                                   ,allocator: *const vk_sys::AllocationCallbacks
+                                   ,set_layout: *mut vk_sys::DescriptorSetLayout
+    ) -> vk_sys::Result;
+
+    fn vkDestroyDescriptorSetLayout(device: vk_sys::Device
+                                    ,descriptor_set_layout: vk_sys::DescriptorSetLayout
+                                    ,allocator: *const vk_sys::AllocationCallbacks
+    );
 }
 
 mod atoms {
@@ -221,6 +232,22 @@ struct ErlVkMemoryAllocateInfo {
     memory_type: u32
 }
 
+#[derive(NifRecord)]
+#[tag="vk_descriptor_set_layout_binding"]
+struct ErlVkDescriptorSetLayoutBinding {
+    binding: u32,
+    descriptor_type: vk_sys::DescriptorType,
+    descriptor_count: u32,
+    stage_flags: vk_sys::ShaderStageFlags
+}
+
+#[derive(NifRecord)]
+#[tag="vk_descriptor_set_layout_create_info"]
+struct ErlVkDescriptorSetLayoutCreateInfo {
+    flags: vk_sys::DescriptorSetLayoutCreateFlags,
+    bindings: Vec<ErlVkDescriptorSetLayoutBinding>
+}
+
 rustler_export_nifs!(
     "plain_vulkan",
     [("create_instance", 1, create_instance_nif)
@@ -243,6 +270,8 @@ rustler_export_nifs!(
     ,("allocate_memory", 2, allocate_memory_nif)
     ,("free_memory", 2, free_memory_nif)
     ,("bind_buffer_memory", 4, bind_buffer_memory_nif)
+    ,("create_descriptor_set_layout_nif", 2, create_descriptor_set_layout_nif)
+    ,("destroy_descriptor_set_layout", 2, destroy_descriptor_set_layout_nif)
     ],
     Some(on_load)
 );
@@ -271,6 +300,10 @@ struct DeviceMemoryHolder {
     pub value: vk_sys::DeviceMemory
 }
 
+struct DescriptorSetLayoutHolder {
+    pub value: vk_sys::DescriptorSetLayout
+}
+
 fn on_load(env: Env, _info: Term) -> bool {
     resource_struct_init!(InstanceHolder, env);
     resource_struct_init!(DeviceHolder, env);
@@ -278,6 +311,7 @@ fn on_load(env: Env, _info: Term) -> bool {
     resource_struct_init!(CommandPoolHolder, env);
     resource_struct_init!(BufferHolder, env);
     resource_struct_init!(DeviceMemoryHolder, env);
+    resource_struct_init!(DescriptorSetLayoutHolder, env);
     true
 }
 
@@ -774,4 +808,50 @@ fn bind_buffer_memory_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a
     };
 
     Ok(ret.encode(env))
+}
+
+fn create_descriptor_set_layout_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
+    let logi_device: ResourceArc<DeviceHolder> = args[0].decode()?;
+    let erl_create_info: ErlVkDescriptorSetLayoutCreateInfo = args[1].decode()?;
+
+    let mut set: Vec<vk_sys::DescriptorSetLayoutBinding> = Vec::new();
+    let len = erl_create_info.bindings.len();
+
+    for i in 0..len {
+        let erl_binding = &erl_create_info.bindings[i];
+        set.push(vk_sys::DescriptorSetLayoutBinding {
+            binding: erl_binding.binding,
+            descriptorType: erl_binding.descriptor_type,
+            descriptorCount: erl_binding.descriptor_count,
+            stageFlags: erl_binding.stage_flags,
+            pImmutableSamplers: null()
+        })
+    }
+
+    let vk_create_info = vk_sys::DescriptorSetLayoutCreateInfo {
+        sType: vk_sys::STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+        pNext: null(),
+        flags: erl_create_info.flags,
+        bindingCount: len as u32,
+        pBindings: set.as_ptr()
+    };
+
+    let (result, set_layout) = unsafe {
+        let mut sl: DescriptorSetLayoutHolder = mem::uninitialized();
+        let r = vkCreateDescriptorSetLayout(logi_device.value, &vk_create_info, null(), &mut sl.value);
+        (r, sl)
+    };
+
+    match_return(env, result, ResourceArc::new(set_layout))
+}
+
+fn destroy_descriptor_set_layout_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
+    let logi_device: ResourceArc<DeviceHolder> = args[0].decode()?;
+    let set_layout: ResourceArc<DescriptorSetLayoutHolder> = args[1].decode()?;
+
+    unsafe {
+        vkDestroyDescriptorSetLayout(logi_device.value, set_layout.value, null());
+    }
+
+    Ok(atoms::ok().encode(env))
 }

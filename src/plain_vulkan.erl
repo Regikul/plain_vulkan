@@ -287,11 +287,21 @@ shader_stage_flags() ->
    ,{all, 16#7FFFFFFF}
   ].
 
+-spec descriptor_set_layout_flags() -> proplists:proplist().
+descriptor_set_layout_flags() -> [].
+
 -spec create_descriptor_set_layout(vk_device(), vk_descriptor_set_layout_create_info()) -> either(vk_descriptor_set_layout(), atom()).
-create_descriptor_set_layout(Device, CreateInfo) ->
-  Flags = CreateInfo#vk_descriptor_set_layout_create_info.flags,
-  Bits = plain_vulkan_util:fold_flags(Flags, shader_stage_flags()),
-  create_descriptor_set_layout_nif(Device, CreateInfo#vk_descriptor_set_layout_create_info{flags = Bits}).
+create_descriptor_set_layout(Device, CreateInfo = #vk_descriptor_set_layout_create_info{}) ->
+  {_, Flags, Bindings0} = CreateInfo,
+  Fun = fun (B) ->
+          StageFlags = B#vk_descriptor_set_layout_binding.stage_flags,
+          StageBits = plain_vulkan_util:fold_flags(StageFlags, shader_stage_flags()),
+          B#vk_descriptor_set_layout_binding{stage_flags = StageBits}
+        end,
+  Bindings1 = lists:map(Fun, Bindings0),
+  Bits = plain_vulkan_util:fold_flags(Flags, descriptor_set_layout_flags()),
+  NewCreateInfo = #vk_descriptor_set_layout_create_info{flags = Bits, bindings = Bindings1},
+  create_descriptor_set_layout_nif(Device, NewCreateInfo).
 
 -spec create_descriptor_set_layout_nif(vk_device(), vk_descriptor_set_layout_create_info()) -> either(vk_descriptor_set_layout(), atom()).
 create_descriptor_set_layout_nif(_Device, _CreateInfo) -> erlang:nif_error({error, not_loaded}).

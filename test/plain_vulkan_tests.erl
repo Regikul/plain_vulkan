@@ -48,14 +48,14 @@ flow_test() ->
   {ok, Memory} = plain_vulkan:allocate_memory(Device, AllocInfo),
   ok = plain_vulkan:bind_buffer_memory(Device, Buffer, Memory, 0),
 
-%%  Binding = #vk_descriptor_set_layout_binding{
-%%    binding = 0,
-%%    descriptor_type = ?VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-%%    descriptor_count = 1,
-%%    stage_flags = [compute]
-%%  },
-%%  DescriptorSetCreateInfo = #vk_descriptor_set_layout_create_info{bindings = [Binding]},
-%%  {ok, Layout} = plain_vulkan:create_descriptor_set_layout(Device, DescriptorSetCreateInfo),
+  Binding = #vk_descriptor_set_layout_binding{
+    binding = 0,
+    descriptor_type = ?VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+    descriptor_count = 1,
+    stage_flags = [compute]
+  },
+  DescriptorSetCreateInfo = #vk_descriptor_set_layout_create_info{bindings = [Binding]},
+  {ok, Layout} = plain_vulkan:create_descriptor_set_layout(Device, DescriptorSetCreateInfo),
 %%  PoolSize = #vk_descriptor_pool_size{type = ?VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, descriptor_count = 1},
 %%  PoolCreateInfo = #vk_descriptor_pool_create_info{max_sets = 1, pool_sizes = [PoolSize]},
 %%  {ok, Pool} = plain_vulkan:create_descriptor_pool(Device, PoolCreateInfo),
@@ -65,7 +65,7 @@ flow_test() ->
 %%
 %%  ok = plain_vulkan:free_descriptor_sets(Device, Pool, Sets),
 %%  ok = plain_vulkan:destroy_descriptor_pool(Device, Pool),
-%%  ok = plain_vulkan:destroy_descriptor_set_layout(Device, Layout),
+  ok = plain_vulkan:destroy_descriptor_set_layout(Device, Layout),
   ok = plain_vulkan:free_memory(Device, Memory),
   ok = plain_vulkan:destroy_buffer(Device, Buffer),
   ok = plain_vulkan:destroy_command_pool(Device, CommandPool),
