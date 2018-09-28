@@ -31,21 +31,21 @@ flow_test() ->
                                       ,usage = [transfer_src, transfer_dst]
                                      },
   {ok, Buffer} = plain_vulkan:create_buffer(Device, BufferInfo),
-%%  #vk_memory_requirements{size = MemReqSize
-%%                          ,memory_type_flags = MemTypeFlags
-%%                         } = plain_vulkan:get_buffer_memory_requirements(Device, Buffer),
-%%  _DeviceMemoryTypes = plain_vulkan:get_physical_device_memory_properties(PhysDevice),
-%%  #vk_physical_device_memory_properties{memory_types = MemTypes} = _DeviceMemoryTypes,
-%%
-%%  MemoryType = lists:foldl( find_memory_of_type(MemTypeFlags), {0}, MemTypes),
-%%
-%%%%  ?debugFmt("required memory is ~pb of type ~p~n", [MemReqSize, MemTypeFlags]),
-%%%%  ?debugFmt("found memory types on this device: ~p~n", [_DeviceMemoryTypes]),
-%%%%  ?debugFmt("selected memory from index ~p", [MemoryType]),
-%%
-%%  AllocInfo = #vk_memory_allocate_info{size = MemReqSize, memory_type = MemoryType},
-%%
-%%  {ok, Memory} = plain_vulkan:allocate_memory(Device, AllocInfo),
+  #vk_memory_requirements{size = MemReqSize
+                          ,memory_type_flags = MemTypeFlags
+                         } = plain_vulkan:get_buffer_memory_requirements(Device, Buffer),
+  DeviceMemoryTypes = plain_vulkan:get_physical_device_memory_properties(PhysDevice),
+  #vk_physical_device_memory_properties{memory_types = MemTypes} = DeviceMemoryTypes,
+
+  MemoryType = lists:foldl( find_memory_of_type(MemTypeFlags), {0}, MemTypes),
+
+%%  ?debugFmt("required memory is ~pb of type ~p~n", [MemReqSize, MemTypeFlags]),
+%%  ?debugFmt("found memory types on this device: ~p~n", [_DeviceMemoryTypes]),
+%%  ?debugFmt("selected memory from index ~p", [MemoryType]),
+
+  AllocInfo = #vk_memory_allocate_info{size = MemReqSize, memory_type = MemoryType},
+
+  {ok, Memory} = plain_vulkan:allocate_memory(Device, AllocInfo),
 %%  plain_vulkan:bind_buffer_memory(Device, Buffer, Memory, 0),
 %%
 %%  Binding = #vk_descriptor_set_layout_binding{
@@ -66,7 +66,7 @@ flow_test() ->
 %%  ok = plain_vulkan:free_descriptor_sets(Device, Pool, Sets),
 %%  ok = plain_vulkan:destroy_descriptor_pool(Device, Pool),
 %%  ok = plain_vulkan:destroy_descriptor_set_layout(Device, Layout),
-%%  ok = plain_vulkan:free_memory(Device, Memory),
+  ok = plain_vulkan:free_memory(Device, Memory),
   ok = plain_vulkan:destroy_buffer(Device, Buffer),
   ok = plain_vulkan:destroy_command_pool(Device, CommandPool),
 
@@ -74,16 +74,16 @@ flow_test() ->
   ok = plain_vulkan:destroy_device(Device),
   ok = plain_vulkan:destroy_instance(Instance).
 
-%%find_memory_of_type(MemReqFlags) ->
-%%  fun ({MemFlags, _HeapNumber}, {Index}) ->
-%%    case lists:subtract(MemReqFlags, MemFlags) of
-%%      [] -> Index;
-%%      _ -> {Index + 1}
-%%    end;
-%%    ({_MemFlags, _HeapNumber}, Index) ->
-%%      Index
-%%  end.
-%%
+find_memory_of_type(MemReqFlags) ->
+  fun ({MemFlags, _HeapNumber}, {Index}) ->
+    case lists:subtract(MemReqFlags, MemFlags) of
+      [] -> Index;
+      _ -> {Index + 1}
+    end;
+    ({_MemFlags, _HeapNumber}, Index) ->
+      Index
+  end.
+
 find_compute_queue(#vk_queue_family_properties{queueFlags = Flags, familyIndex = Index}, null) ->
   case lists:member(compute, Flags) of
     'true' -> #vk_device_queue_create_info{queue_count = 1, queue_family_index = Index, queue_priorities = [0.0]};

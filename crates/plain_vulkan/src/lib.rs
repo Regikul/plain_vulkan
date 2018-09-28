@@ -10,6 +10,7 @@ use rustler::{Env, Term, Error, Encoder};
 use rustler::resource::ResourceArc;
 use std::ffi::{CString, CStr, NulError};
 use std::mem;
+use std::ptr::{null, null_mut};
 
 #[link(name = "vulkan")]
 extern {
@@ -75,6 +76,26 @@ extern {
                        ,buffer: vk_sys::Buffer
                        ,allocator: *const vk_sys::AllocationCallbacks
     );
+
+    fn vkGetBufferMemoryRequirements(device: vk_sys::Device
+                                     ,buffer: vk_sys::Buffer
+                                     ,memory_requirements: *mut vk_sys::MemoryRequirements
+    );
+
+    fn vkGetPhysicalDeviceMemoryProperties(device: vk_sys::PhysicalDevice
+                                           ,memory_properties: *mut vk_sys::PhysicalDeviceMemoryProperties
+    );
+
+    fn vkAllocateMemory(device: vk_sys::Device
+                        ,allocate_info: *const vk_sys::MemoryAllocateInfo
+                        ,allocator: *const vk_sys::AllocationCallbacks
+                        ,memory: *mut vk_sys::DeviceMemory
+    ) -> vk_sys::Result;
+
+    fn vkFreeMemory(device: vk_sys::Device
+                    ,memory: vk_sys::DeviceMemory
+                    ,allocator: *const vk_sys::AllocationCallbacks
+    );
 }
 
 mod atoms {
@@ -92,6 +113,7 @@ mod atoms {
         atom layers_not_present;
         atom extension_not_present;
         atom incompatible_driver;
+        atom too_many_objects;
 
         // records
         atom vk_physical_device_properties;
@@ -159,6 +181,40 @@ struct ErlVkBufferCreateInfo {
     queue_family_indices: Vec<u32>
 }
 
+#[derive(NifRecord)]
+#[tag="vk_memory_requirements"]
+struct ErlVkMemoryRequirements {
+    size: vk_sys::DeviceSize,
+    alignment: vk_sys::DeviceSize,
+    memory_type_bits: u32
+}
+
+#[derive(NifTuple)]
+struct ErlVkMemoryType {
+    property_flags: vk_sys::MemoryPropertyFlags,
+    heap_index: u32
+}
+
+#[derive(NifTuple)]
+struct ErlVkMemoryHeap {
+    size: vk_sys::DeviceSize,
+    flags: vk_sys::MemoryHeapFlags
+}
+
+#[derive(NifRecord)]
+#[tag="vk_physical_device_memory_properties"]
+struct ErlVkPhysicalDeviceMemoryProperties {
+    memory_types: Vec<ErlVkMemoryType>,
+    memory_heaps: Vec<ErlVkMemoryHeap>
+}
+
+#[derive(NifRecord)]
+#[tag="vk_memory_allocate_info"]
+struct ErlVkMemoryAllocateInfo {
+    size: vk_sys::DeviceSize,
+    memory_type: u32
+}
+
 rustler_export_nifs!(
     "plain_vulkan",
     [("create_instance", 1, create_instance_nif)
@@ -176,6 +232,10 @@ rustler_export_nifs!(
     ,("destroy_command_pool", 2, destroy_command_pool_nif)
     ,("create_buffer_nif", 2, create_buffer_nif)
     ,("destroy_buffer", 2, destroy_buffer_nif)
+    ,("get_buffer_memory_requirements_nif", 2, get_buffer_memory_requirements_nif)
+    ,("get_physical_device_memory_properties_nif", 1, get_physical_device_memory_properties_nif)
+    ,("allocate_memory", 2, allocate_memory_nif)
+    ,("free_memory", 2, free_memory_nif)
     ],
     Some(on_load)
 );
@@ -200,12 +260,17 @@ struct BufferHolder {
     pub value: vk_sys::Buffer
 }
 
+struct DeviceMemoryHolder {
+    pub value: vk_sys::DeviceMemory
+}
+
 fn on_load(env: Env, _info: Term) -> bool {
     resource_struct_init!(InstanceHolder, env);
     resource_struct_init!(DeviceHolder, env);
     resource_struct_init!(QueueHolder, env);
     resource_struct_init!(CommandPoolHolder, env);
     resource_struct_init!(BufferHolder, env);
+    resource_struct_init!(DeviceMemoryHolder, env);
     true
 }
 
@@ -243,6 +308,8 @@ fn match_return<'a, T: Encoder>(env: Env<'a>, result: vk_sys::Result, data: T) -
             Ok(erl_error(env, atoms::extension_not_present())),
         vk_sys::ERROR_INCOMPATIBLE_DRIVER =>
             Ok(erl_error(env, atoms::incompatible_driver())),
+        vk_sys::ERROR_TOO_MANY_OBJECTS =>
+            Ok(erl_error(env, atoms::too_many_objects())),
         _ =>
             Ok(erl_error(env, atoms::nif_error()))
     }
@@ -258,7 +325,7 @@ fn create_instance_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, 
 
     let app_info = vk_sys::ApplicationInfo {
         sType : vk_sys::STRUCTURE_TYPE_APPLICATION_INFO,
-        pNext: std::ptr::null(),
+        pNext: null(),
         pApplicationName: app_name.as_ptr(),
         applicationVersion: vk_make_version(0, 1,0),
         pEngineName: app_name.as_ptr(),
@@ -268,20 +335,20 @@ fn create_instance_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, 
 
     let create_info = vk_sys::InstanceCreateInfo {
         sType: vk_sys::STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
-        pNext: std::ptr::null(),
+        pNext: null(),
         flags: 0,
         pApplicationInfo: &app_info,
         enabledLayerCount: 0,
-        ppEnabledLayerNames: std::ptr::null(),
+        ppEnabledLayerNames: null(),
         enabledExtensionCount: 0,
-        ppEnabledExtensionNames: std::ptr::null(),
+        ppEnabledExtensionNames: null(),
     };
 
     let (result, instance) = unsafe {
         let mut holder = InstanceHolder {
             value: mem::uninitialized()
         };
-        let vk_result = vkCreateInstance(&create_info, std::ptr::null(), &mut holder.value);
+        let vk_result = vkCreateInstance(&create_info, null(), &mut holder.value);
         (vk_result, holder)
     };
 
@@ -292,7 +359,7 @@ fn destroy_instance_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>,
     let inst_holder : ResourceArc<InstanceHolder> = args[0].decode()?;
 
     unsafe {
-        vkDestroyInstance(inst_holder.value, std::ptr::null());
+        vkDestroyInstance(inst_holder.value, null());
     }
 
     Ok(atoms::ok().encode(env))
@@ -304,7 +371,7 @@ fn count_physical_devices_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Ter
     let (result, count) = unsafe {
         let mut c:u32 = 0;
         let r: vk_sys::Result;
-        r = vkEnumeratePhysicalDevices(inst_holder.value, &mut c, std::ptr::null_mut());
+        r = vkEnumeratePhysicalDevices(inst_holder.value, &mut c, null_mut());
         (r, c)
     };
 
@@ -361,7 +428,7 @@ fn get_physical_device_queue_family_count_nif<'a>(env: Env<'a>, args: &[Term<'a>
     let physical_device: vk_sys::PhysicalDevice = args[0].decode()?;
     let count = unsafe {
         let mut c = 0;
-        vkGetPhysicalDeviceQueueFamilyProperties(physical_device, &mut c, std::ptr::null_mut());
+        vkGetPhysicalDeviceQueueFamilyProperties(physical_device, &mut c, null_mut());
         c
     };
 
@@ -475,7 +542,7 @@ fn create_device_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Er
     for idx in 0..device_create_info.queue_create_infos.len() {
         queue_create_infos[idx].sType = vk_sys::STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
         queue_create_infos[idx].flags = 0;
-        queue_create_infos[idx].pNext = std::ptr::null();
+        queue_create_infos[idx].pNext = null();
         queue_create_infos[idx].queueFamilyIndex = device_create_info.queue_create_infos[idx].queue_family_index;
         queue_create_infos[idx].queueCount = device_create_info.queue_create_infos[idx].queue_count;
         queue_create_infos[idx].pQueuePriorities = device_create_info.queue_create_infos[idx].queue_priorities.as_ptr();
@@ -493,7 +560,7 @@ fn create_device_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Er
 
     let (res, device) = unsafe {
         let mut unsafe_device : DeviceHolder = mem::uninitialized();
-        let result = vkCreateDevice(physical_device, &create_info, std::ptr::null(), &mut unsafe_device.value);
+        let result = vkCreateDevice(physical_device, &create_info, null(), &mut unsafe_device.value);
         (result, unsafe_device)
     };
 
@@ -514,7 +581,7 @@ fn destroy_device_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, E
     let logi_device: ResourceArc<DeviceHolder> = args[0].decode()?;
 
     unsafe {
-        vkDestroyDevice(logi_device.value, std::ptr::null())
+        vkDestroyDevice(logi_device.value, null())
     };
 
     Ok(atoms::ok().encode(env))
@@ -540,7 +607,7 @@ fn create_command_pool_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'
 
     let create_info = vk_sys::CommandPoolCreateInfo{
         sType: vk_sys::STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-        pNext: std::ptr::null(),
+        pNext: null(),
         flags: erl_create_info.flags,
         queueFamilyIndex: erl_create_info.queue_family_index
     };
@@ -548,7 +615,7 @@ fn create_command_pool_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'
     let (result, command_pool) = unsafe {
         let mut pool : CommandPoolHolder = mem::uninitialized();
 
-        let r = vkCreateCommandPool(logi_device.value, &create_info, std::ptr::null(), &mut pool.value);
+        let r = vkCreateCommandPool(logi_device.value, &create_info, null(), &mut pool.value);
         (r, pool)
     };
 
@@ -560,7 +627,7 @@ fn destroy_command_pool_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<
     let pool: ResourceArc<CommandPoolHolder> = args[1].decode()?;
 
     unsafe {
-        vkDestroyCommandPool(logi_device.value, pool.value, std::ptr::null());
+        vkDestroyCommandPool(logi_device.value, pool.value, null());
     }
 
     Ok(atoms::ok().encode(env))
@@ -572,7 +639,7 @@ fn create_buffer_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Er
 
     let create_info = vk_sys::BufferCreateInfo {
         sType: vk_sys::STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-        pNext: std::ptr::null(),
+        pNext: null(),
         flags: erl_create_info.flags,
         size: erl_create_info.size,
         usage: erl_create_info.usage,
@@ -583,7 +650,7 @@ fn create_buffer_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Er
 
     let (result, buffer) = unsafe {
         let mut b: BufferHolder = mem::uninitialized();
-        let r = vkCreateBuffer(logi_device.value, &create_info, std::ptr::null(), &mut b.value);
+        let r = vkCreateBuffer(logi_device.value, &create_info, null(), &mut b.value);
         (r, b)
     };
 
@@ -595,8 +662,85 @@ fn destroy_buffer_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, E
     let buffer: ResourceArc<BufferHolder> = args[1].decode()?;
 
     unsafe {
-        vkDestroyBuffer(logi_device.value, buffer.value, std::ptr::null());
+        vkDestroyBuffer(logi_device.value, buffer.value, null());
     };
+
+    Ok(atoms::ok().encode(env))
+}
+
+fn get_buffer_memory_requirements_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
+    let logi_device: ResourceArc<DeviceHolder> = args[0].decode()?;
+    let buffer: ResourceArc<BufferHolder> = args[1].decode()?;
+
+    let mem_req = unsafe {
+        let mut m = mem::uninitialized();
+
+        vkGetBufferMemoryRequirements(logi_device.value, buffer.value, &mut m);
+        m
+    };
+
+    let erl_ret = ErlVkMemoryRequirements {
+        size: mem_req.size,
+        alignment: mem_req.alignment,
+        memory_type_bits: mem_req.memoryTypeBits
+    };
+
+    Ok(erl_ret.encode(env))
+}
+
+fn get_physical_device_memory_properties_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
+    let phy_dev: vk_sys::PhysicalDevice = args[0].decode()?;
+
+    let mem_props = unsafe {
+        let mut m = mem::uninitialized();
+        vkGetPhysicalDeviceMemoryProperties(phy_dev, &mut m);
+        m
+    };
+
+    let tc = mem_props.memoryTypeCount as usize;
+    let hc = mem_props.memoryHeapCount as usize;
+
+    let hs: Vec<ErlVkMemoryHeap> = mem_props.memoryHeaps[0..hc].iter().map(
+        |h| ErlVkMemoryHeap{size: h.size, flags: h.flags}
+    ).collect();
+    let ts: Vec<ErlVkMemoryType> = mem_props.memoryTypes[0..tc].iter().map(
+        |t| ErlVkMemoryType{heap_index:t.heapIndex, property_flags: t.propertyFlags}
+    ).collect();
+
+    let erl_ret = ErlVkPhysicalDeviceMemoryProperties {
+        memory_heaps: hs,
+        memory_types: ts
+    };
+
+    Ok(erl_ret.encode(env))
+}
+
+fn allocate_memory_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
+    let logi_device: ResourceArc<DeviceHolder> = args[0].decode()?;
+    let erl_alloc_info: ErlVkMemoryAllocateInfo = args[1].decode()?;
+    let alloc_info = vk_sys::MemoryAllocateInfo {
+        pNext: null(),
+        sType: vk_sys::STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+        allocationSize: erl_alloc_info.size,
+        memoryTypeIndex: erl_alloc_info.memory_type
+    };
+
+    let (result, mem) = unsafe {
+        let mut m: DeviceMemoryHolder = mem::uninitialized();
+        let r = vkAllocateMemory(logi_device.value, &alloc_info, null(), &mut m.value);
+        (r, m)
+    };
+
+    match_return(env, result, ResourceArc::new(mem))
+}
+
+fn free_memory_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
+    let logi_device: ResourceArc<DeviceHolder> = args[0].decode()?;
+    let memory: ResourceArc<DeviceMemoryHolder> = args[1].decode()?;
+
+    unsafe {
+        vkFreeMemory(logi_device.value, memory.value, null());
+    }
 
     Ok(atoms::ok().encode(env))
 }
