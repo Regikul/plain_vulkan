@@ -96,6 +96,12 @@ extern {
                     ,memory: vk_sys::DeviceMemory
                     ,allocator: *const vk_sys::AllocationCallbacks
     );
+
+    fn vkBindBufferMemory(device: vk_sys::Device
+                          ,buffer: vk_sys::Buffer
+                          ,memory: vk_sys::DeviceMemory
+                          ,offset: vk_sys::DeviceSize
+    ) -> vk_sys::Result;
 }
 
 mod atoms {
@@ -236,6 +242,7 @@ rustler_export_nifs!(
     ,("get_physical_device_memory_properties_nif", 1, get_physical_device_memory_properties_nif)
     ,("allocate_memory", 2, allocate_memory_nif)
     ,("free_memory", 2, free_memory_nif)
+    ,("bind_buffer_memory", 4, bind_buffer_memory_nif)
     ],
     Some(on_load)
 );
@@ -743,4 +750,28 @@ fn free_memory_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Erro
     }
 
     Ok(atoms::ok().encode(env))
+}
+
+fn bind_buffer_memory_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
+    let logi_device: ResourceArc<DeviceHolder> = args[0].decode()?;
+    let buffer: ResourceArc<BufferHolder> = args[1].decode()?;
+    let memory: ResourceArc<DeviceMemoryHolder> = args[2].decode()?;
+    let offset: vk_sys::DeviceSize = args[3].decode()?;
+
+    let result = unsafe {
+        vkBindBufferMemory(logi_device.value, buffer.value, memory.value, offset)
+    };
+
+    let ret = match result {
+        vk_sys::SUCCESS =>
+            atoms::ok(),
+        vk_sys::ERROR_OUT_OF_HOST_MEMORY =>
+            atoms::out_of_host_memory(),
+        vk_sys::ERROR_OUT_OF_DEVICE_MEMORY =>
+            atoms::out_of_device_memory(),
+        _ =>
+            atoms::nif_error()
+    };
+
+    Ok(ret.encode(env))
 }

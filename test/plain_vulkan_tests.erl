@@ -46,8 +46,8 @@ flow_test() ->
   AllocInfo = #vk_memory_allocate_info{size = MemReqSize, memory_type = MemoryType},
 
   {ok, Memory} = plain_vulkan:allocate_memory(Device, AllocInfo),
-%%  plain_vulkan:bind_buffer_memory(Device, Buffer, Memory, 0),
-%%
+  ok = plain_vulkan:bind_buffer_memory(Device, Buffer, Memory, 0),
+
 %%  Binding = #vk_descriptor_set_layout_binding{
 %%    binding = 0,
 %%    descriptor_type = ?VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
