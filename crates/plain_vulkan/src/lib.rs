@@ -141,7 +141,6 @@ mod atoms {
     rustler_atoms! {
         atom ok;
         atom error;
-        atom undefined;
         atom nif_error;
 
         // Vulkan
@@ -153,10 +152,6 @@ mod atoms {
         atom extension_not_present;
         atom incompatible_driver;
         atom too_many_objects;
-
-        // records
-        atom vk_extent_3d;
-        atom vk_queue_family_properties;
     }
 }
 
@@ -196,7 +191,27 @@ struct ErlVkPhysicalDeviceProperties {
     pub device_id: u32,
     pub device_type: vk_sys::PhysicalDeviceType,
     pub device_name: String,
-    pub pipeline_cache_uuid: Vec<u8>
+    pub pipeline_cache_uuid: Vec<u8>,
+    pub nothing1: Option<bool>,
+    pub nothing2: Option<bool>
+}
+
+#[derive(NifRecord)]
+#[tag="vk_extent_3d"]
+struct ErlVkExtent3D {
+    width: u32,
+    height: u32,
+    depth: u32
+}
+
+#[derive(NifRecord)]
+#[tag="vk_queue_family_properties"]
+struct ErlVkQueueFamilyProperties {
+    queue_flags: vk_sys::QueueFlags,
+    queue_count: u32,
+    timestamp_valid_bits: u32,
+    min_image_transfer_granularity: ErlVkExtent3D,
+    family_index: u32
 }
 
 #[derive(NifRecord)]
@@ -494,7 +509,7 @@ fn enumerate_physical_devices_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result
 
     let (result, devices) = unsafe {
         let r: vk_sys::Result;
-        let mut pdevices: Vec<vk_sys::PhysicalDevice> = vec![mem::zeroed(); count as usize];
+        let mut pdevices: Vec<vk_sys::PhysicalDevice> = vec![mem::uninitialized(); count as usize];
         r = vkEnumeratePhysicalDevices(inst_holder.value, &mut count, pdevices.as_mut_ptr());
         (r, pdevices)
     };
@@ -519,7 +534,9 @@ fn get_physical_device_properties_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Re
         device_id: props.deviceID,
         device_type: props.deviceType,
         device_name: dev_name.to_owned(),
-        pipeline_cache_uuid: props.pipelineCacheUUID.to_vec()
+        pipeline_cache_uuid: props.pipelineCacheUUID.to_vec(),
+        nothing1: None,
+        nothing2: None
     };
 
     Ok(erl_props.encode(env))
@@ -555,18 +572,18 @@ fn get_physical_device_queue_family_properties_nif<'a>(env: Env<'a>, args: &[Ter
     let mut result:Vec<Term> = Vec::new();
     for (idx, prop) in props.iter().enumerate() {
         let extent = &prop.minImageTransferGranularity;
-        let erl_extent = (atoms::vk_extent_3d()
-                          ,extent.width
-                          ,extent.height
-                          ,extent.depth
-        );
-        let erl_property = (atoms::vk_queue_family_properties()
-                            ,prop.queueFlags
-                            ,prop.queueCount
-                            ,prop.timestampValidBits
-                            ,erl_extent
-                            ,idx
-        );
+        let erl_extent = ErlVkExtent3D {
+            width: extent.width,
+            height: extent.height,
+            depth: extent.depth
+        };
+        let erl_property = ErlVkQueueFamilyProperties {
+            queue_flags: prop.queueFlags,
+            queue_count: prop.queueCount,
+            timestamp_valid_bits: prop.timestampValidBits,
+            min_image_transfer_granularity: erl_extent,
+            family_index: idx as u32
+        };
         result.push(erl_property.encode(env));
     };
 
