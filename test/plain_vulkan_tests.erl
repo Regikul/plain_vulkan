@@ -59,11 +59,11 @@ flow_test() ->
   PoolSize = #vk_descriptor_pool_size{type = ?VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, descriptor_count = 1},
   PoolCreateInfo = #vk_descriptor_pool_create_info{max_sets = 1, pool_sizes = [PoolSize]},
   {ok, Pool} = plain_vulkan:create_descriptor_pool(Device, PoolCreateInfo),
-%%  SetsCreateInfo = #vk_descriptor_set_allocate_info{pool = Pool, set_layouts = [Layout]},
-%%  {ok, Sets} = plain_vulkan:allocate_descriptor_sets(Device, SetsCreateInfo),
-%%
-%%
-%%  ok = plain_vulkan:free_descriptor_sets(Device, Pool, Sets),
+  SetsCreateInfo = #vk_descriptor_set_allocate_info{pool = Pool, set_layouts = [Layout]},
+  {ok, Sets} = plain_vulkan:allocate_descriptor_sets(Device, SetsCreateInfo),
+
+
+  ok = plain_vulkan:free_descriptor_sets(Device, Pool, Sets),
   ok = plain_vulkan:destroy_descriptor_pool(Device, Pool),
   ok = plain_vulkan:destroy_descriptor_set_layout(Device, Layout),
   ok = plain_vulkan:free_memory(Device, Memory),

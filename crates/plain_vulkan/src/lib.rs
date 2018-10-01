@@ -124,6 +124,17 @@ extern {
                                ,descriptor_pool: vk_sys::DescriptorPool
                                ,allocator: *const vk_sys::AllocationCallbacks
     );
+
+    fn vkAllocateDescriptorSets(device: vk_sys::Device
+                                ,allocate_info: *const vk_sys::DescriptorSetAllocateInfo
+                                ,descriptor_sets: *mut vk_sys::DescriptorSet
+    ) -> vk_sys::Result;
+
+    fn vkFreeDescriptorSets(device: vk_sys::Device
+                            ,descriptor_pool: vk_sys::DescriptorPool
+                            ,descriptor_set_count: u32
+                            ,descriptor_sets: *const vk_sys::DescriptorSet
+    ) -> vk_sys::Result;
 }
 
 mod atoms {
@@ -274,6 +285,12 @@ struct ErlVkDescriptorPoolCreateInfo {
     pool_sizes: Vec<ErlVkDescriptorPoolSize>
 }
 
+#[derive(NifRecord)]
+#[tag="vk_descriptor_set_allocate_info"]
+struct ErlVkDescriptorSetAllocateInfo {
+    pool: ResourceArc<DescriptorPoolHolder>,
+    set_layouts: Vec<ResourceArc<DescriptorSetLayoutHolder>>
+}
 
 rustler_export_nifs!(
     "plain_vulkan",
@@ -301,6 +318,8 @@ rustler_export_nifs!(
     ,("destroy_descriptor_set_layout", 2, destroy_descriptor_set_layout_nif)
     ,("create_descriptor_pool_nif", 2, create_descriptor_pool_nif)
     ,("destroy_descriptor_pool", 2, destroy_descriptor_pool_nif)
+    ,("allocate_descriptor_sets", 2, allocate_descriptor_sets_nif)
+    ,("free_descriptor_sets", 3, free_descriptor_sets_nif)
     ],
     Some(on_load)
 );
@@ -337,6 +356,10 @@ struct DescriptorPoolHolder {
     pub value: vk_sys::DescriptorPool
 }
 
+struct DescriptorSetHolder {
+    pub value: vk_sys::DescriptorSet
+}
+
 fn on_load(env: Env, _info: Term) -> bool {
     resource_struct_init!(InstanceHolder, env);
     resource_struct_init!(DeviceHolder, env);
@@ -346,6 +369,7 @@ fn on_load(env: Env, _info: Term) -> bool {
     resource_struct_init!(DeviceMemoryHolder, env);
     resource_struct_init!(DescriptorSetLayoutHolder, env);
     resource_struct_init!(DescriptorPoolHolder, env);
+    resource_struct_init!(DescriptorSetHolder, env);
     true
 }
 
@@ -928,4 +952,56 @@ fn destroy_descriptor_pool_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Te
     };
 
     Ok(atoms::ok().encode(env))
+}
+
+fn allocate_descriptor_sets_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
+    let logi_device: ResourceArc<DeviceHolder> = args[0].decode()?;
+    let erl_alloc_info: ErlVkDescriptorSetAllocateInfo = args[1].decode()?;
+
+    let map_fun = |l:&ResourceArc<DescriptorSetLayoutHolder>| l.value;
+
+    let set_layouts: Vec<vk_sys::DescriptorSetLayout> =
+        erl_alloc_info.set_layouts.iter().map(map_fun).collect();
+
+    let vk_alloc_info = vk_sys::DescriptorSetAllocateInfo {
+        sType: vk_sys::STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+        pNext: null(),
+        descriptorPool: erl_alloc_info.pool.value,
+        descriptorSetCount: set_layouts.len() as u32,
+        pSetLayouts: set_layouts.as_ptr()
+    };
+
+    let (result, sets): (vk_sys::Result, Vec<ResourceArc<DescriptorSetHolder>>) = unsafe {
+        let mut ss: Vec<vk_sys::DescriptorSet> = Vec::new();
+        ss.reserve(set_layouts.len());
+        ss.set_len(set_layouts.len());
+        let r = vkAllocateDescriptorSets(logi_device.value, &vk_alloc_info, ss.as_mut_ptr());
+        let wrap_fun = |ds: &vk_sys::DescriptorSet| ResourceArc::new(DescriptorSetHolder{value: *ds});
+        (r, ss.iter().map(wrap_fun).collect())
+    };
+
+    match_return(env, result, sets)
+}
+
+fn free_descriptor_sets_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
+    let logi_device: ResourceArc<DeviceHolder> = args[0].decode()?;
+    let pool: ResourceArc<DescriptorPoolHolder> = args[1].decode()?;
+    let erl_sets: Vec<ResourceArc<DescriptorSetHolder>> = args[2].decode()?;
+
+    let unwrap_fun = |h:&ResourceArc<DescriptorSetHolder>|h.value;
+    let vk_sets:Vec<vk_sys::DescriptorSet> = erl_sets.iter().map(unwrap_fun).collect();
+
+    let result = unsafe {
+        vkFreeDescriptorSets(logi_device.value, pool.value, vk_sets.len() as u32, vk_sets.as_ptr())
+    };
+
+    let term = match result {
+        vk_sys::SUCCESS => atoms::ok().encode(env),
+        vk_sys::ERROR_OUT_OF_HOST_MEMORY => erl_error(env, atoms::out_of_host_memory()),
+        vk_sys::ERROR_OUT_OF_DEVICE_MEMORY => erl_error(env, atoms::out_of_device_memory()),
+        _ => atoms::nif_error().encode(env)
+    };
+
+    Ok(term)
+
 }
