@@ -155,7 +155,6 @@ mod atoms {
         atom too_many_objects;
 
         // records
-        atom vk_physical_device_properties;
         atom vk_extent_3d;
         atom vk_queue_family_properties;
     }
@@ -186,6 +185,18 @@ struct ErlVkPhysicalDeviceFeatures {
     pub sparse_residency2_samples: bool, pub sparse_residency4_samples: bool,
     pub sparse_residency8_samples: bool, pub sparse_residency16_samples: bool,
     pub sparse_residency_aliased: bool, pub variable_multisample_rate: bool, pub inherited_queries: bool
+}
+
+#[derive(NifRecord)]
+#[tag="vk_physical_device_properties"]
+struct ErlVkPhysicalDeviceProperties {
+    pub api_version: u32,
+    pub driver_version: u32,
+    pub vendor_id: u32,
+    pub device_id: u32,
+    pub device_type: vk_sys::PhysicalDeviceType,
+    pub device_name: String,
+    pub pipeline_cache_uuid: Vec<u8>
 }
 
 #[derive(NifRecord)]
@@ -494,31 +505,24 @@ fn enumerate_physical_devices_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result
 fn get_physical_device_properties_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
     let physical_device: vk_sys::PhysicalDevice = args[0].decode()?;
     let props = unsafe {
-        let mut p: vk_sys::PhysicalDeviceProperties = mem::zeroed();
-
+        let mut p: vk_sys::PhysicalDeviceProperties = mem::uninitialized();
         vkGetPhysicalDeviceProperties(physical_device, &mut p);
         p
     };
 
-    let dev_name = match unsafe {CStr::from_ptr(props.deviceName.as_ptr())}.to_str() {
-        Ok(string) => string,
-        Err(_) => return Err(Error::Atom("nif_error"))
+    let dev_name: &str = unsafe {CStr::from_ptr(props.deviceName.as_ptr())}.to_str().unwrap();
+
+    let erl_props = ErlVkPhysicalDeviceProperties {
+        api_version: props.apiVersion,
+        driver_version: props.driverVersion,
+        vendor_id: props.vendorID,
+        device_id: props.deviceID,
+        device_type: props.deviceType,
+        device_name: dev_name.to_owned(),
+        pipeline_cache_uuid: props.pipelineCacheUUID.to_vec()
     };
 
-    let cache_uuid = props.pipelineCacheUUID.as_ref();
-
-    Ok((atoms::vk_physical_device_properties()
-        ,props.apiVersion
-        ,props.driverVersion
-        ,props.vendorID
-        ,props.deviceID
-        ,props.deviceType
-        ,dev_name
-        ,cache_uuid
-        ,atoms::undefined()
-        ,atoms::undefined()
-    ).encode(env))
-
+    Ok(erl_props.encode(env))
 }
 
 fn get_physical_device_queue_family_count_nif<'a>(env: Env<'a>, args: &[Term<'a>])
