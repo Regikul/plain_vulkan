@@ -113,6 +113,17 @@ extern {
                                     ,descriptor_set_layout: vk_sys::DescriptorSetLayout
                                     ,allocator: *const vk_sys::AllocationCallbacks
     );
+
+    fn vkCreateDescriptorPool(device: vk_sys::Device
+                              ,create_info: *const vk_sys::DescriptorPoolCreateInfo
+                              ,allocator: *const vk_sys::AllocationCallbacks
+                              ,descriptor_pool: *mut vk_sys::DescriptorPool
+    ) -> vk_sys::Result;
+
+    fn vkDestroyDescriptorPool(device: vk_sys::Device
+                               ,descriptor_pool: vk_sys::DescriptorPool
+                               ,allocator: *const vk_sys::AllocationCallbacks
+    );
 }
 
 mod atoms {
@@ -248,6 +259,22 @@ struct ErlVkDescriptorSetLayoutCreateInfo {
     bindings: Vec<ErlVkDescriptorSetLayoutBinding>
 }
 
+#[derive(NifRecord)]
+#[tag="vk_descriptor_pool_size"]
+struct ErlVkDescriptorPoolSize {
+    descriptor_type: vk_sys::DescriptorType,
+    descriptor_count: u32
+}
+
+#[derive(NifRecord)]
+#[tag="vk_descriptor_pool_create_info"]
+struct ErlVkDescriptorPoolCreateInfo {
+    flags: vk_sys::DescriptorPoolCreateFlags,
+    max_sets: u32,
+    pool_sizes: Vec<ErlVkDescriptorPoolSize>
+}
+
+
 rustler_export_nifs!(
     "plain_vulkan",
     [("create_instance", 1, create_instance_nif)
@@ -272,6 +299,8 @@ rustler_export_nifs!(
     ,("bind_buffer_memory", 4, bind_buffer_memory_nif)
     ,("create_descriptor_set_layout_nif", 2, create_descriptor_set_layout_nif)
     ,("destroy_descriptor_set_layout", 2, destroy_descriptor_set_layout_nif)
+    ,("create_descriptor_pool_nif", 2, create_descriptor_pool_nif)
+    ,("destroy_descriptor_pool", 2, destroy_descriptor_pool_nif)
     ],
     Some(on_load)
 );
@@ -304,6 +333,10 @@ struct DescriptorSetLayoutHolder {
     pub value: vk_sys::DescriptorSetLayout
 }
 
+struct DescriptorPoolHolder {
+    pub value: vk_sys::DescriptorPool
+}
+
 fn on_load(env: Env, _info: Term) -> bool {
     resource_struct_init!(InstanceHolder, env);
     resource_struct_init!(DeviceHolder, env);
@@ -312,6 +345,7 @@ fn on_load(env: Env, _info: Term) -> bool {
     resource_struct_init!(BufferHolder, env);
     resource_struct_init!(DeviceMemoryHolder, env);
     resource_struct_init!(DescriptorSetLayoutHolder, env);
+    resource_struct_init!(DescriptorPoolHolder, env);
     true
 }
 
@@ -852,6 +886,46 @@ fn destroy_descriptor_set_layout_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Res
     unsafe {
         vkDestroyDescriptorSetLayout(logi_device.value, set_layout.value, null());
     }
+
+    Ok(atoms::ok().encode(env))
+}
+
+fn create_descriptor_pool_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
+    let logi_device: ResourceArc<DeviceHolder> = args[0].decode()?;
+    let erl_create_info: ErlVkDescriptorPoolCreateInfo = args[1].decode()?;
+    let map_fun = |p:&ErlVkDescriptorPoolSize| vk_sys::DescriptorPoolSize{
+        descriptorCount: p.descriptor_count,
+        ty: p.descriptor_type
+    };
+
+    let vk_pool_sizes: Vec<vk_sys::DescriptorPoolSize> =
+        erl_create_info.pool_sizes.iter().map(map_fun).collect();
+
+    let vk_create_info = vk_sys::DescriptorPoolCreateInfo{
+        sType: vk_sys::STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+        pNext: null(),
+        flags: erl_create_info.flags,
+        maxSets: erl_create_info.max_sets,
+        poolSizeCount: vk_pool_sizes.len() as u32,
+        pPoolSizes: vk_pool_sizes.as_ptr()
+    };
+
+    let (result, pool) = unsafe {
+        let mut p: DescriptorPoolHolder = mem::uninitialized();
+        let r = vkCreateDescriptorPool(logi_device.value, &vk_create_info, null(), &mut p.value);
+        (r, p)
+    };
+
+    match_return(env, result, ResourceArc::new(pool))
+}
+
+fn destroy_descriptor_pool_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
+    let logi_device: ResourceArc<DeviceHolder> = args[0].decode()?;
+    let pool: ResourceArc<DescriptorPoolHolder> = args[1].decode()?;
+
+    unsafe {
+        vkDestroyDescriptorPool(logi_device.value, pool.value, null())
+    };
 
     Ok(atoms::ok().encode(env))
 }
