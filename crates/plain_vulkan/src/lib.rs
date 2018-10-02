@@ -152,6 +152,7 @@ mod atoms {
         atom extension_not_present;
         atom incompatible_driver;
         atom too_many_objects;
+        atom device_lost;
     }
 }
 
@@ -435,6 +436,8 @@ fn match_return<'a, T: Encoder>(env: Env<'a>, result: vk_sys::Result, data: T) -
             Ok(erl_error(env, atoms::incompatible_driver())),
         vk_sys::ERROR_TOO_MANY_OBJECTS =>
             Ok(erl_error(env, atoms::too_many_objects())),
+        vk_sys::ERROR_DEVICE_LOST =>
+            Ok(erl_error(env, atoms::device_lost())),
         _ =>
             Ok(erl_error(env, atoms::nif_error()))
     }
