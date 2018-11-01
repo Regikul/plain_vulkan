@@ -1,5 +1,7 @@
 -module(plain_vulkan_tests).
 
+-define(BUFFER_SIZE, 1024).
+
 -include_lib("eunit/include/eunit.hrl").
 -include("../include/plain_vulkan.hrl").
 
@@ -26,11 +28,11 @@ flow_test() ->
   CommandPoolInfo = #vk_command_pool_create_info{flags = [transient, reset], queue_family_index = ComputeFamily},
   {ok, CommandPool} = plain_vulkan:create_command_pool(Device, CommandPoolInfo),
 
-  BufferInfo = #vk_buffer_create_info{queue_family_indices = [ComputeFamily]
-                                      ,size = 1024
-                                      ,usage = [transfer_src, transfer_dst]
-                                     },
-  {ok, Buffer} = plain_vulkan:create_buffer(Device, BufferInfo),
+  BufferCreateInfo = #vk_buffer_create_info{queue_family_indices = [ComputeFamily]
+                                            ,size = ?BUFFER_SIZE
+                                            ,usage = [transfer_src, transfer_dst]
+                                           },
+  {ok, Buffer} = plain_vulkan:create_buffer(Device, BufferCreateInfo),
   #vk_memory_requirements{size = MemReqSize
                           ,memory_type_flags = MemTypeFlags
                          } = plain_vulkan:get_buffer_memory_requirements(Device, Buffer),
@@ -60,10 +62,19 @@ flow_test() ->
   PoolCreateInfo = #vk_descriptor_pool_create_info{max_sets = 1, pool_sizes = [PoolSize]},
   {ok, Pool} = plain_vulkan:create_descriptor_pool(Device, PoolCreateInfo),
   SetsCreateInfo = #vk_descriptor_set_allocate_info{pool = Pool, set_layouts = [Layout]},
-  {ok, Sets} = plain_vulkan:allocate_descriptor_sets(Device, SetsCreateInfo),
+  {ok, [Set]} = plain_vulkan:allocate_descriptor_sets(Device, SetsCreateInfo),
 
+  BufferInfo = #vk_descriptor_buffer_info{buffer = Buffer, offset = 0, range = ?BUFFER_SIZE},
+  Writes = #vk_write_descriptor_set{
+    dst_set = Set,
+    dst_binding = 0,
+    dst_array_element = 0,
+    descriptor_type = ?VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+    buffer_info = [BufferInfo]
+  },
+  ok = plain_vulkan:update_descriptor_sets(Device, [Writes], []),
 
-  ok = plain_vulkan:free_descriptor_sets(Device, Pool, Sets),
+  ok = plain_vulkan:free_descriptor_sets(Device, Pool, [Set]),
   ok = plain_vulkan:destroy_descriptor_pool(Device, Pool),
   ok = plain_vulkan:destroy_descriptor_set_layout(Device, Layout),
   ok = plain_vulkan:free_memory(Device, Memory),

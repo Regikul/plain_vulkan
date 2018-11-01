@@ -135,6 +135,13 @@ extern {
                             ,descriptor_set_count: u32
                             ,descriptor_sets: *const vk_sys::DescriptorSet
     ) -> vk_sys::Result;
+
+    fn vkUpdateDescriptorSets(device: vk_sys::Device
+                              ,write_count: u32
+                              ,writes: *const vk_sys::WriteDescriptorSet
+                              ,copy_count: u32
+                              ,copies: *const vk_sys::CopyDescriptorSet
+    );
 }
 
 mod atoms {
@@ -319,6 +326,39 @@ struct ErlVkDescriptorSetAllocateInfo {
     set_layouts: Vec<ResourceArc<DescriptorSetLayoutHolder>>
 }
 
+#[derive(NifRecord)]
+#[tag="vk_descriptor_buffer_info"]
+struct ErlVkDescriptorBufferInfo {
+    buffer: ResourceArc<BufferHolder>,
+    offset: vk_sys::DeviceSize,
+    range: vk_sys::DeviceSize
+}
+
+#[derive(NifRecord)]
+#[tag="vk_write_descriptor_set"]
+struct ErlVkWriteDescriptorSet {
+    dst_set: ResourceArc<DescriptorSetHolder>,
+    dst_binding: u32,
+    dst_array_element: u32,
+//    descriptor_count: u32,
+    descriptor_type: vk_sys::DescriptorType,
+    //,image_info :: [term()],                      %% don't want to implement
+     buffer_info: Vec<ErlVkDescriptorBufferInfo>
+    // texel_biffer_view :: [term()]                %% don't want to implement
+}
+
+#[derive(NifRecord)]
+#[tag="vk_copy_descriptor_set"]
+struct ErlVkCopyDescriptorSet {
+    src_set: ResourceArc<DescriptorSetHolder>,
+    src_binding: u32,
+    src_array_element: u32,
+    dst_set: ResourceArc<DescriptorSetHolder>,
+    dst_binding: u32,
+    dst_array_element: u32,
+    descriptor_count:u32
+}
+
 rustler_export_nifs!(
     "plain_vulkan",
     [("create_instance", 1, create_instance_nif)
@@ -347,6 +387,7 @@ rustler_export_nifs!(
     ,("destroy_descriptor_pool", 2, destroy_descriptor_pool_nif)
     ,("allocate_descriptor_sets", 2, allocate_descriptor_sets_nif)
     ,("free_descriptor_sets", 3, free_descriptor_sets_nif)
+    ,("update_descriptor_sets", 3, update_descriptor_sets_nif)
     ],
     Some(on_load)
 );
@@ -1027,5 +1068,55 @@ fn free_descriptor_sets_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<
     };
 
     Ok(term)
+}
 
+fn update_descriptor_sets_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
+    let logi_device: ResourceArc<DeviceHolder> = args[0].decode()?;
+    let erl_writes: Vec<ErlVkWriteDescriptorSet> = args[1].decode()?;
+    let erl_copies: Vec<ErlVkCopyDescriptorSet> = args[2].decode()?;
+
+    let map_vec_info = |x: &ErlVkDescriptorBufferInfo|vk_sys::DescriptorBufferInfo{
+        range: x.range,
+        offset: x.offset,
+        buffer: x.buffer.value
+    };
+    let map_buffer_info = |x: &ErlVkWriteDescriptorSet|x.buffer_info.iter().map(map_vec_info).collect();
+
+    let map_copies = |x: &ErlVkCopyDescriptorSet|vk_sys::CopyDescriptorSet{
+        sType: vk_sys::STRUCTURE_TYPE_COPY_DESCRIPTOR_SET,
+        pNext: null(),
+        srcSet: x.src_set.value,
+        srcBinding: x.src_binding,
+        srcArrayElement: x.src_array_element,
+        dstSet: x.dst_set.value,
+        dstBinding: x.dst_binding,
+        dstArrayElement: x.dst_array_element,
+        descriptorCount: x.descriptor_count,
+    };
+
+    let vk_copies: Vec<vk_sys::CopyDescriptorSet> = erl_copies.iter().map(map_copies).collect();
+    let buffers: Vec<Vec<vk_sys::DescriptorBufferInfo>> = erl_writes.iter().map(map_buffer_info).collect();
+    let mut vk_writes: Vec<vk_sys::WriteDescriptorSet> = Vec::new();
+
+    for (i, x) in erl_writes.iter().enumerate() {
+        let ds = vk_sys::WriteDescriptorSet {
+            sType: vk_sys::STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            pNext: null(),
+            dstSet: x.dst_set.value,
+            dstBinding: x.dst_binding,
+            dstArrayElement: x.dst_array_element,
+            descriptorCount: buffers[i].len() as u32,
+            descriptorType: x.descriptor_type,
+            pImageInfo: null(),
+            pBufferInfo: buffers[i].as_ptr(),
+            pTexelBufferView: null()
+        };
+        vk_writes.push(ds);
+    }
+
+    unsafe {
+        vkUpdateDescriptorSets(logi_device.value, vk_writes.len() as u32, vk_writes.as_ptr(), vk_copies.len() as u32, vk_copies.as_ptr());
+    };
+
+    Ok(atoms::ok().encode(env))
 }

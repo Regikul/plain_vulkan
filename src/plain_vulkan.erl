@@ -23,7 +23,7 @@
   allocate_memory/2, free_memory/2, bind_buffer_memory/4,
   create_descriptor_set_layout/2, destroy_descriptor_set_layout/2,
   create_descriptor_pool/2, destroy_descriptor_pool/2,
-  allocate_descriptor_sets/2, free_descriptor_sets/3
+  allocate_descriptor_sets/2, free_descriptor_sets/3, update_descriptor_sets/3
 ]).
 
 -type vk_instance() :: reference().
@@ -326,6 +326,9 @@ allocate_descriptor_sets(_Device, _CreateInfo) -> erlang:nif_error({error, not_l
 
 -spec free_descriptor_sets(vk_device(), vk_descriptor_pool(), [vk_descriptor_set()]) -> ok | {error, atom()}.
 free_descriptor_sets(_Device, _Pool, _Sets) -> erlang:nif_error({error, not_loaded}).
+
+-spec update_descriptor_sets(vk_device(), [vk_write_descriptor_set()], [vk_copy_descriptor_set()]) -> ok.
+update_descriptor_sets(_Device, _Writes, _Copies) -> erlang:nif_error({error, not_loaded}).
 
 %%====================================================================
 %% Internal functions
