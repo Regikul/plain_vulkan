@@ -202,4 +202,34 @@
 }).
 -type vk_descriptor_set_allocate_info() :: #vk_descriptor_set_allocate_info{}.
 
+-record(vk_descriptor_buffer_info, {
+  buffer :: plain_vulkan:vk_buffer(),
+  offset :: non_neg_integer(),
+  range :: non_neg_integer()
+}).
+-type vk_descriptor_buffer_info() :: #vk_descriptor_buffer_info{}.
+
+-record(vk_write_descriptor_set, {
+  dst_set :: plain_vulkan:vk_descriptor_set(),
+  dst_binding :: non_neg_integer(),
+  dst_array_element :: non_neg_integer(),
+%%  descriptor_count :: non_neg_integer(),              %% don't want to implement
+  descriptor_type :: vk_descriptor_type(),
+  %%,image_info :: [term()],                            %% don't want to implement
+  buffer_info :: [vk_descriptor_buffer_info()]
+  %%,texel_biffer_view :: [term()]                      %% don't want to implement
+}).
+-type vk_write_descriptor_set() :: #vk_write_descriptor_set{}.
+
+-record(vk_copy_descriptor_set, {
+  src_set :: plain_vulkan:vk_descriptor_set(),
+  src_binding :: non_neg_integer(),
+  src_array_element :: non_neg_integer(),
+  dst_set :: plain_vulkan:vk_descriptor_set(),
+  dst_binding :: non_neg_integer(),
+  dst_array_element :: non_neg_integer(),
+  descriptor_count :: non_neg_integer()
+}).
+-type vk_copy_descriptor_set() :: #vk_copy_descriptor_set{}.
+
 -endif.

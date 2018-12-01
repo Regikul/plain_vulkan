@@ -19,3 +19,5 @@ _build
 .idea
 *.iml
 rebar3.crashdump
+priv/crates/*/*.d
+crates/*/target/*

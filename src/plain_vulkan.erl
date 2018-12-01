@@ -2,6 +2,7 @@
 
 -on_load(init/0).
 
+
 %% API exports
 -export([
   create_instance/1, destroy_instance/1,
@@ -22,7 +23,7 @@
   allocate_memory/2, free_memory/2, bind_buffer_memory/4,
   create_descriptor_set_layout/2, destroy_descriptor_set_layout/2,
   create_descriptor_pool/2, destroy_descriptor_pool/2,
-  allocate_descriptor_sets/2, free_descriptor_sets/3
+  allocate_descriptor_sets/2, free_descriptor_sets/3, update_descriptor_sets/3
 ]).
 
 -type vk_instance() :: reference().
@@ -31,7 +32,7 @@
 -type vk_buffer() :: reference().
 -type vk_command_pool() :: reference().
 -type vk_device_memory() :: reference().
--type vk_physical_device() :: reference().
+-type vk_physical_device() :: pos_integer().
 -type vk_descriptor_set_layout() :: reference().
 -type vk_descriptor_set()  :: reference().
 -type vk_descriptor_pool() :: reference().
@@ -286,11 +287,21 @@ shader_stage_flags() ->
    ,{all, 16#7FFFFFFF}
   ].
 
+-spec descriptor_set_layout_flags() -> proplists:proplist().
+descriptor_set_layout_flags() -> [].
+
 -spec create_descriptor_set_layout(vk_device(), vk_descriptor_set_layout_create_info()) -> either(vk_descriptor_set_layout(), atom()).
-create_descriptor_set_layout(Device, CreateInfo) ->
-  Flags = CreateInfo#vk_descriptor_set_layout_create_info.flags,
-  Bits = plain_vulkan_util:fold_flags(Flags, shader_stage_flags()),
-  create_descriptor_set_layout_nif(Device, CreateInfo#vk_descriptor_set_layout_create_info{flags = Bits}).
+create_descriptor_set_layout(Device, CreateInfo = #vk_descriptor_set_layout_create_info{}) ->
+  {_, Flags, Bindings0} = CreateInfo,
+  Fun = fun (B) ->
+          StageFlags = B#vk_descriptor_set_layout_binding.stage_flags,
+          StageBits = plain_vulkan_util:fold_flags(StageFlags, shader_stage_flags()),
+          B#vk_descriptor_set_layout_binding{stage_flags = StageBits}
+        end,
+  Bindings1 = lists:map(Fun, Bindings0),
+  Bits = plain_vulkan_util:fold_flags(Flags, descriptor_set_layout_flags()),
+  NewCreateInfo = #vk_descriptor_set_layout_create_info{flags = Bits, bindings = Bindings1},
+  create_descriptor_set_layout_nif(Device, NewCreateInfo).
 
 -spec create_descriptor_set_layout_nif(vk_device(), vk_descriptor_set_layout_create_info()) -> either(vk_descriptor_set_layout(), atom()).
 create_descriptor_set_layout_nif(_Device, _CreateInfo) -> erlang:nif_error({error, not_loaded}).
@@ -316,6 +327,9 @@ allocate_descriptor_sets(_Device, _CreateInfo) -> erlang:nif_error({error, not_l
 -spec free_descriptor_sets(vk_device(), vk_descriptor_pool(), [vk_descriptor_set()]) -> ok | {error, atom()}.
 free_descriptor_sets(_Device, _Pool, _Sets) -> erlang:nif_error({error, not_loaded}).
 
+-spec update_descriptor_sets(vk_device(), [vk_write_descriptor_set()], [vk_copy_descriptor_set()]) -> ok.
+update_descriptor_sets(_Device, _Writes, _Copies) -> erlang:nif_error({error, not_loaded}).
+
 %%====================================================================
 %% Internal functions
 %%====================================================================
@@ -323,4 +337,4 @@ free_descriptor_sets(_Device, _Pool, _Sets) -> erlang:nif_error({error, not_load
 -spec init() -> ok.
 init() ->
   PrivDir = code:priv_dir(?MODULE),
-  ok = erlang:load_nif(filename:join(PrivDir, "plain_vulkan_drv"), 0).
+  ok = erlang:load_nif(filename:join(PrivDir, "crates/plain_vulkan/libplain_vulkan"), 0).
