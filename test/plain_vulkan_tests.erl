@@ -74,6 +74,13 @@ flow_test() ->
   },
   ok = plain_vulkan:update_descriptor_sets(Device, [Writes], []),
 
+  Priv = code:priv_dir(plain_vulkan),
+  {ok, ShaderContents} = file:read_file(filename:join([Priv, "spirv", "shader.comp.spv"])),
+  ShaderCreateInfo = #vk_shader_module_create_info{code = binary_to_list(ShaderContents)},
+  {ok, ShaderModule} = plain_vulkan:create_shader_module(Device, ShaderCreateInfo),
+
+
+  ok = plain_vulkan:destroy_shader_module(Device, ShaderModule),
   ok = plain_vulkan:free_descriptor_sets(Device, Pool, [Set]),
   ok = plain_vulkan:destroy_descriptor_pool(Device, Pool),
   ok = plain_vulkan:destroy_descriptor_set_layout(Device, Layout),

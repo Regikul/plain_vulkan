@@ -23,7 +23,8 @@
   allocate_memory/2, free_memory/2, bind_buffer_memory/4,
   create_descriptor_set_layout/2, destroy_descriptor_set_layout/2,
   create_descriptor_pool/2, destroy_descriptor_pool/2,
-  allocate_descriptor_sets/2, free_descriptor_sets/3, update_descriptor_sets/3
+  allocate_descriptor_sets/2, free_descriptor_sets/3, update_descriptor_sets/3,
+  create_shader_module/2, destroy_shader_module/2
 ]).
 
 -type vk_instance() :: reference().
@@ -37,6 +38,7 @@
 -type vk_descriptor_set()  :: reference().
 -type vk_descriptor_pool() :: reference().
 -type vk_physical_devices() :: [vk_physical_device()].
+-type vk_shader_module() :: reference().
 -type vk_enumerate_dev_ret() :: {ok, vk_physical_devices()}
                                 | {incomplete, vk_physical_devices()}
                                 | out_of_device_memory
@@ -59,7 +61,8 @@
   vk_count_dev_ret/0,
   vk_descriptor_pool/0,
   vk_descriptor_set/0,
-  vk_descriptor_set_layout/0
+  vk_descriptor_set_layout/0,
+  vk_shader_module/0
 ]).
 
 -include("plain_vulkan.hrl").
@@ -329,6 +332,16 @@ free_descriptor_sets(_Device, _Pool, _Sets) -> erlang:nif_error({error, not_load
 
 -spec update_descriptor_sets(vk_device(), [vk_write_descriptor_set()], [vk_copy_descriptor_set()]) -> ok.
 update_descriptor_sets(_Device, _Writes, _Copies) -> erlang:nif_error({error, not_loaded}).
+
+-spec create_shader_module(vk_device(), vk_shader_module_create_info()) -> either(vk_shader_module(), atom()).
+create_shader_module(Device, CreateInfo) ->
+  create_shader_module_nif(Device, CreateInfo#vk_shader_module_create_info{flags = 0}).
+
+-spec create_shader_module_nif(vk_device(), vk_shader_module_create_info()) -> either(vk_shader_module(), atom()).
+create_shader_module_nif(_Device, _CreateInfo) -> erlang:nif_error({error, not_loaded}).
+
+-spec destroy_shader_module(vk_device(), vk_shader_module()) -> ok.
+destroy_shader_module(_Device, _Shader) -> erlang:nif_error({error, not_loaded}).
 
 %%====================================================================
 %% Internal functions

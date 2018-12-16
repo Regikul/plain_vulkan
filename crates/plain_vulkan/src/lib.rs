@@ -142,6 +142,17 @@ extern {
                               ,copy_count: u32
                               ,copies: *const vk_sys::CopyDescriptorSet
     );
+
+    fn vkCreateShaderModule(device: vk_sys::Device
+                            ,create_info: *const vk_sys::ShaderModuleCreateInfo
+                            ,allocator: *const vk_sys::AllocationCallbacks
+                            ,shader_module: *mut vk_sys::ShaderModule
+    ) -> vk_sys::Result;
+
+    fn vkDestroyShaderModule(device: vk_sys::Device
+                             ,shader_module: vk_sys::ShaderModule
+                             ,allocator: *const vk_sys::AllocationCallbacks
+    );
 }
 
 mod atoms {
@@ -359,6 +370,13 @@ struct ErlVkCopyDescriptorSet {
     descriptor_count:u32
 }
 
+#[derive(NifRecord)]
+#[tag="vk_shader_module_create_info"]
+struct ErlVkShaderModuleCreateInfo {
+    flags: u32,
+    code: Vec<u8>
+}
+
 rustler_export_nifs!(
     "plain_vulkan",
     [("create_instance", 1, create_instance_nif)
@@ -388,6 +406,8 @@ rustler_export_nifs!(
     ,("allocate_descriptor_sets", 2, allocate_descriptor_sets_nif)
     ,("free_descriptor_sets", 3, free_descriptor_sets_nif)
     ,("update_descriptor_sets", 3, update_descriptor_sets_nif)
+    ,("create_shader_module_nif", 2, create_shader_module_nif)
+    ,("destroy_shader_module", 2, destroy_shader_module_nif)
     ],
     Some(on_load)
 );
@@ -428,6 +448,10 @@ struct DescriptorSetHolder {
     pub value: vk_sys::DescriptorSet
 }
 
+struct ShaderModuleHolder {
+    pub value: vk_sys::ShaderModule
+}
+
 fn on_load(env: Env, _info: Term) -> bool {
     resource_struct_init!(InstanceHolder, env);
     resource_struct_init!(DeviceHolder, env);
@@ -438,6 +462,7 @@ fn on_load(env: Env, _info: Term) -> bool {
     resource_struct_init!(DescriptorSetLayoutHolder, env);
     resource_struct_init!(DescriptorPoolHolder, env);
     resource_struct_init!(DescriptorSetHolder, env);
+    resource_struct_init!(ShaderModuleHolder, env);
     true
 }
 
@@ -1117,6 +1142,44 @@ fn update_descriptor_sets_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Ter
     unsafe {
         vkUpdateDescriptorSets(logi_device.value, vk_writes.len() as u32, vk_writes.as_ptr(), vk_copies.len() as u32, vk_copies.as_ptr());
     };
+
+    Ok(atoms::ok().encode(env))
+}
+
+fn create_shader_module_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
+    let logi_device: ResourceArc<DeviceHolder> = args[0].decode()?;
+    let mut erl_create_info: ErlVkShaderModuleCreateInfo = args[1].decode()?;
+
+    let len:u32 = erl_create_info.code.len() as u32;
+
+    let padded_len:u32 = (len as f32 / 4.0).ceil() as u32 * 4;
+
+    if padded_len > len {
+        erl_create_info.code.reserve_exact((padded_len - len) as usize);
+    }
+
+    let create_info = vk_sys::ShaderModuleCreateInfo {
+        sType: vk_sys::STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+        pNext: null(),
+        flags: 0,
+        codeSize: padded_len as usize,
+        pCode: erl_create_info.code.as_ptr() as *const u32
+    };
+
+    let (result, shader) = unsafe {
+        let mut s = ShaderModuleHolder { value : mem::uninitialized()} ;
+        let r = vkCreateShaderModule(logi_device.value, &create_info, null(), &mut s.value);
+        (r, s)
+    };
+
+    match_return(env, result, ResourceArc::new(shader))
+}
+
+fn destroy_shader_module_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
+    let logi_device: ResourceArc<DeviceHolder> = args[0].decode()?;
+    let shader: ResourceArc<ShaderModuleHolder> = args[1].decode()?;
+
+    unsafe { vkDestroyShaderModule(logi_device.value, shader.value, null())};
 
     Ok(atoms::ok().encode(env))
 }

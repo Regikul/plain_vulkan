@@ -232,4 +232,10 @@
 }).
 -type vk_copy_descriptor_set() :: #vk_copy_descriptor_set{}.
 
+-record(vk_shader_module_create_info, {
+  flags :: [atom()],
+  code :: binary()
+}).
+-type vk_shader_module_create_info() :: #vk_shader_module_create_info{}.
+
 -endif.
