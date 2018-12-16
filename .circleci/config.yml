@@ -2,15 +2,9 @@ version: 2
 jobs:
   build:
     docker:
-      - image: library/erlang:20.2.4
+      - image: regikul/plain_vulkan-build_env:0.0.2
     steps:
       - checkout
-      - run:
-          name: vulkan api
-          command: apt-get update && apt-get install libvulkan-dev -y
-      - run:
-          name: rust compiler
-          command: curl https://sh.rustup.rs -sSf | sh -s -- -y
       - run:
           name: compile
           command: source $HOME/.cargo/env && rebar3 compile
