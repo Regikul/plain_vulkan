@@ -24,7 +24,8 @@
   create_descriptor_set_layout/2, destroy_descriptor_set_layout/2,
   create_descriptor_pool/2, destroy_descriptor_pool/2,
   allocate_descriptor_sets/2, free_descriptor_sets/3, update_descriptor_sets/3,
-  create_shader_module/2, destroy_shader_module/2
+  create_shader_module/2, destroy_shader_module/2,
+  create_pipeline_layout/2, destroy_pipeline_layout/2
 ]).
 
 -type vk_instance() :: reference().
@@ -39,6 +40,7 @@
 -type vk_descriptor_pool() :: reference().
 -type vk_physical_devices() :: [vk_physical_device()].
 -type vk_shader_module() :: reference().
+-type vk_pipeline_layout() :: reference().
 -type vk_enumerate_dev_ret() :: {ok, vk_physical_devices()}
                                 | {incomplete, vk_physical_devices()}
                                 | out_of_device_memory
@@ -342,6 +344,21 @@ create_shader_module_nif(_Device, _CreateInfo) -> erlang:nif_error({error, not_l
 
 -spec destroy_shader_module(vk_device(), vk_shader_module()) -> ok.
 destroy_shader_module(_Device, _Shader) -> erlang:nif_error({error, not_loaded}).
+
+-spec create_pipeline_layout(vk_device(), vk_pipeline_layout_create_info()) -> either(vk_pipeline_layout(), atom()).
+create_pipeline_layout(Device, #vk_pipeline_layout_create_info{push_constant_ranges = ConstantRanges} = CreateInfo) ->
+  MapFun = fun (#vk_push_constant_range{stage_flags = Flags} = Ranges) ->
+               Bits = plain_vulkan_util:fold_flags(Flags, shader_stage_flags()),
+               Ranges#vk_push_constant_range{stage_flags = Bits}
+           end,
+  NewConstantRanges = lists:map(MapFun, ConstantRanges),
+  create_pipeline_layout_nif(Device, CreateInfo#vk_pipeline_layout_create_info{flags = 0, push_constant_ranges = NewConstantRanges}).
+
+-spec create_pipeline_layout_nif(vk_device(), vk_pipeline_layout_create_info()) -> either(vk_pipeline_layout(), atom()).
+create_pipeline_layout_nif(_Device, _CreateInfo) -> erlang:nif_error({error, not_loaded}).
+
+-spec destroy_pipeline_layout(vk_device(), vk_pipeline_layout()) -> ok.
+destroy_pipeline_layout(_Device, _PipelineLayout) -> erlang:nif_error({error, not_loaded}).
 
 %%====================================================================
 %% Internal functions

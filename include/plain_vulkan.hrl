@@ -233,9 +233,24 @@
 -type vk_copy_descriptor_set() :: #vk_copy_descriptor_set{}.
 
 -record(vk_shader_module_create_info, {
-  flags :: [atom()],
+  flags = [] :: [atom()],
   code :: binary()
 }).
 -type vk_shader_module_create_info() :: #vk_shader_module_create_info{}.
+
+-record(vk_push_constant_range,{
+  stage_flags = [] :: [atom()],
+  offset :: non_neg_integer(),
+  size :: non_neg_integer()
+}).
+-type vk_push_constant_range() :: #vk_push_constant_range{}.
+
+-record(vk_pipeline_layout_create_info,{
+  flags = [] :: [atom()],
+  set_layouts :: [plain_vulkan:vk_descriptor_set_layout()],
+  push_constant_ranges :: [vk_push_constant_range()]
+}).
+-type vk_pipeline_layout_create_info() :: #vk_pipeline_layout_create_info{}.
+
 
 -endif.

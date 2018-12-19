@@ -79,7 +79,13 @@ flow_test() ->
   ShaderCreateInfo = #vk_shader_module_create_info{code = binary_to_list(ShaderContents)},
   {ok, ShaderModule} = plain_vulkan:create_shader_module(Device, ShaderCreateInfo),
 
+  PipelineLayoutCreateInfo = #vk_pipeline_layout_create_info{set_layouts = [Layout]
+                                                             ,push_constant_ranges = []
+                                                            },
+  {ok, PipelineLayout} = plain_vulkan:create_pipeline_layout(Device, PipelineLayoutCreateInfo),
 
+
+  ok = plain_vulkan:destroy_pipeline_layout(Device, PipelineLayout),
   ok = plain_vulkan:destroy_shader_module(Device, ShaderModule),
   ok = plain_vulkan:free_descriptor_sets(Device, Pool, [Set]),
   ok = plain_vulkan:destroy_descriptor_pool(Device, Pool),

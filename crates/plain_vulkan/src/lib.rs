@@ -153,6 +153,18 @@ extern {
                              ,shader_module: vk_sys::ShaderModule
                              ,allocator: *const vk_sys::AllocationCallbacks
     );
+
+    fn vkCreatePipelineLayout(device: vk_sys::Device
+                             ,create_info: *const vk_sys::PipelineLayoutCreateInfo
+                             ,allocator: *const vk_sys::AllocationCallbacks
+                             ,pipeline_layout: *mut vk_sys::PipelineLayout
+    ) -> vk_sys::Result;
+
+    fn vkDestroyPipelineLayout(device: vk_sys::Device
+                             ,pipeline_layout: vk_sys::PipelineLayout
+                             ,allocator: *const vk_sys::AllocationCallbacks
+    );
+
 }
 
 mod atoms {
@@ -377,6 +389,22 @@ struct ErlVkShaderModuleCreateInfo {
     code: Vec<u8>
 }
 
+#[derive(NifRecord)]
+#[tag="vk_push_constant_range"]
+struct ErlVkPushConstantRange {
+    flags: u32,
+    offset: u32,
+    size: u32
+}
+
+#[derive(NifRecord)]
+#[tag="vk_pipeline_layout_create_info"]
+struct ErlVkPipelineCreateInfo {
+    flags: u32,
+    set_layouts: Vec<ResourceArc<DescriptorSetLayoutHolder>>,
+    push_constant_ranges: Vec<ErlVkPushConstantRange>
+}
+
 rustler_export_nifs!(
     "plain_vulkan",
     [("create_instance", 1, create_instance_nif)
@@ -408,6 +436,8 @@ rustler_export_nifs!(
     ,("update_descriptor_sets", 3, update_descriptor_sets_nif)
     ,("create_shader_module_nif", 2, create_shader_module_nif)
     ,("destroy_shader_module", 2, destroy_shader_module_nif)
+    ,("create_pipeline_layout_nif", 2, create_pipeline_layout_nif)
+    ,("destroy_pipeline_layout", 2, destroy_pipeline_layout_nif)
     ],
     Some(on_load)
 );
@@ -452,6 +482,10 @@ struct ShaderModuleHolder {
     pub value: vk_sys::ShaderModule
 }
 
+struct PipelineLayoutHolder {
+    pub value: vk_sys::PipelineLayout
+}
+
 fn on_load(env: Env, _info: Term) -> bool {
     resource_struct_init!(InstanceHolder, env);
     resource_struct_init!(DeviceHolder, env);
@@ -463,6 +497,7 @@ fn on_load(env: Env, _info: Term) -> bool {
     resource_struct_init!(DescriptorPoolHolder, env);
     resource_struct_init!(DescriptorSetHolder, env);
     resource_struct_init!(ShaderModuleHolder, env);
+    resource_struct_init!(PipelineLayoutHolder, env);
     true
 }
 
@@ -1180,6 +1215,50 @@ fn destroy_shader_module_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term
     let shader: ResourceArc<ShaderModuleHolder> = args[1].decode()?;
 
     unsafe { vkDestroyShaderModule(logi_device.value, shader.value, null())};
+
+    Ok(atoms::ok().encode(env))
+}
+
+fn create_pipeline_layout_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
+    let logi_device: ResourceArc<DeviceHolder> = args[0].decode()?;
+    let erl_create_info: ErlVkPipelineCreateInfo = args[1].decode()?;
+
+    let map_set_layouts = | x: &ResourceArc<DescriptorSetLayoutHolder> | x.value;
+    let set_layouts: Vec<vk_sys::DescriptorSetLayout> = erl_create_info.set_layouts.iter().map(map_set_layouts).collect();
+
+    let map_const_ranges = |x: &ErlVkPushConstantRange|vk_sys::PushConstantRange{
+        stageFlags: x.flags,
+        offset: x.offset,
+        size: x.size,
+    };
+    let constant_ranges: Vec<vk_sys::PushConstantRange> = erl_create_info.push_constant_ranges.iter().map(map_const_ranges).collect();
+
+    let create_info = vk_sys::PipelineLayoutCreateInfo {
+        sType: vk_sys::STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+        pNext: null(),
+        flags: 0,
+        setLayoutCount: set_layouts.len() as u32,
+        pSetLayouts: set_layouts.as_ptr(),
+        pushConstantRangeCount: constant_ranges.len() as u32,
+        pPushConstantRanges: constant_ranges.as_ptr(),
+    };
+
+    let (result, pipeline) = unsafe {
+        let mut p = PipelineLayoutHolder {value: mem::uninitialized()};
+        let r = vkCreatePipelineLayout(logi_device.value, &create_info, null(), &mut p.value);
+        (r, p)
+    };
+
+    match_return(env, result, ResourceArc::new(pipeline))
+}
+
+fn destroy_pipeline_layout_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
+    let logi_device: ResourceArc<DeviceHolder> = args[0].decode()?;
+    let pipeline: ResourceArc<PipelineLayoutHolder> = args[1].decode()?;
+
+    unsafe {
+        vkDestroyPipelineLayout(logi_device.value, pipeline.value, null());
+    }
 
     Ok(atoms::ok().encode(env))
 }
