@@ -517,7 +517,7 @@ fn erl_error<'a, T: Encoder>(env: Env<'a>, data: T) -> Term<'a> {
 }
 
 #[inline]
-fn match_return<'a, T: Encoder>(env: Env<'a>, result: vk_sys::Result, data: T) -> Result<Term<'a>, Error> {
+fn match_return<T: Encoder>(env: Env, result: vk_sys::Result, data: T) -> Result<Term, Error> {
     match result {
         vk_sys::SUCCESS =>
             Ok(erl_ok(env, data.encode(env))),
@@ -574,10 +574,11 @@ fn create_instance_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, 
     };
 
     let (result, instance) = unsafe {
-        let mut holder = InstanceHolder {
-            value: mem::uninitialized()
+        let mut inst = mem::MaybeUninit::<vk_sys::Instance>::uninit();
+        let vk_result = vkCreateInstance(&create_info, null(), inst.as_mut_ptr());
+        let holder = InstanceHolder {
+            value: inst.assume_init()
         };
-        let vk_result = vkCreateInstance(&create_info, null(), &mut holder.value);
         (vk_result, holder)
     };
 
@@ -613,7 +614,9 @@ fn enumerate_physical_devices_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result
 
     let (result, devices) = unsafe {
         let r: vk_sys::Result;
-        let mut pdevices: Vec<vk_sys::PhysicalDevice> = vec![mem::uninitialized(); count as usize];
+        let mut pdevices: Vec<vk_sys::PhysicalDevice> = Vec::new();
+        pdevices.reserve(count as usize);
+        pdevices.set_len(count as usize);
         r = vkEnumeratePhysicalDevices(inst_holder.value, &mut count, pdevices.as_mut_ptr());
         (r, pdevices)
     };
@@ -624,9 +627,9 @@ fn enumerate_physical_devices_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result
 fn get_physical_device_properties_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
     let physical_device: vk_sys::PhysicalDevice = args[0].decode()?;
     let props = unsafe {
-        let mut p: vk_sys::PhysicalDeviceProperties = mem::uninitialized();
-        vkGetPhysicalDeviceProperties(physical_device, &mut p);
-        p
+        let mut p = mem::MaybeUninit::<vk_sys::PhysicalDeviceProperties>::uninit();
+        vkGetPhysicalDeviceProperties(physical_device, p.as_mut_ptr());
+        p.assume_init()
     };
 
     let dev_name: &str = unsafe {CStr::from_ptr(props.deviceName.as_ptr())}.to_str().unwrap();
@@ -783,9 +786,10 @@ fn create_device_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Er
     };
 
     let (res, device) = unsafe {
-        let mut unsafe_device : DeviceHolder = mem::uninitialized();
-        let result = vkCreateDevice(physical_device, &create_info, null(), &mut unsafe_device.value);
-        (result, unsafe_device)
+        let mut d = mem::MaybeUninit::<vk_sys::Device>::uninit();
+        let result = vkCreateDevice(physical_device, &create_info, null(), d.as_mut_ptr());
+        let dev = DeviceHolder { value: d.assume_init() };
+        (result, dev)
     };
 
     match_return(env, res, ResourceArc::new(device))
@@ -817,9 +821,11 @@ fn get_device_queue_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>,
     let queue_index: u32 = args[2].decode()?;
 
     let queue = unsafe {
-        let mut q:QueueHolder = mem::uninitialized();
-        vkGetDeviceQueue(logi_device.value, queue_family, queue_index, &mut q.value);
-        q
+        let mut q= mem::MaybeUninit::<vk_sys::Queue>::uninit();
+        vkGetDeviceQueue(logi_device.value, queue_family, queue_index, q.as_mut_ptr());
+        QueueHolder{
+            value: q.assume_init()
+        }
     };
 
     Ok(ResourceArc::new(queue).encode(env))
@@ -837,9 +843,12 @@ fn create_command_pool_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'
     };
 
     let (result, command_pool) = unsafe {
-        let mut pool : CommandPoolHolder = mem::uninitialized();
+        let mut p = mem::MaybeUninit::<vk_sys::CommandPool>::uninit();
 
-        let r = vkCreateCommandPool(logi_device.value, &create_info, null(), &mut pool.value);
+        let r = vkCreateCommandPool(logi_device.value, &create_info, null(), p.as_mut_ptr());
+        let pool = CommandPoolHolder {
+            value : p.assume_init()
+        };
         (r, pool)
     };
 
@@ -873,8 +882,9 @@ fn create_buffer_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Er
     };
 
     let (result, buffer) = unsafe {
-        let mut b: BufferHolder = mem::uninitialized();
-        let r = vkCreateBuffer(logi_device.value, &create_info, null(), &mut b.value);
+        let mut v = mem::MaybeUninit::<vk_sys::Buffer>::uninit();
+        let r = vkCreateBuffer(logi_device.value, &create_info, null(), v.as_mut_ptr());
+        let b = BufferHolder {value: v.assume_init()};
         (r, b)
     };
 
@@ -897,10 +907,10 @@ fn get_buffer_memory_requirements_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Re
     let buffer: ResourceArc<BufferHolder> = args[1].decode()?;
 
     let mem_req = unsafe {
-        let mut m = mem::uninitialized();
+        let mut m = mem::MaybeUninit::<vk_sys::MemoryRequirements>::uninit();
 
-        vkGetBufferMemoryRequirements(logi_device.value, buffer.value, &mut m);
-        m
+        vkGetBufferMemoryRequirements(logi_device.value, buffer.value, m.as_mut_ptr());
+        m.assume_init()
     };
 
     let erl_ret = ErlVkMemoryRequirements {
@@ -916,9 +926,9 @@ fn get_physical_device_memory_properties_nif<'a>(env: Env<'a>, args: &[Term<'a>]
     let phy_dev: vk_sys::PhysicalDevice = args[0].decode()?;
 
     let mem_props = unsafe {
-        let mut m = mem::uninitialized();
-        vkGetPhysicalDeviceMemoryProperties(phy_dev, &mut m);
-        m
+        let mut m = mem::MaybeUninit::<vk_sys::PhysicalDeviceMemoryProperties>::uninit();
+        vkGetPhysicalDeviceMemoryProperties(phy_dev, m.as_mut_ptr());
+        m.assume_init()
     };
 
     let tc = mem_props.memoryTypeCount as usize;
@@ -950,8 +960,9 @@ fn allocate_memory_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, 
     };
 
     let (result, mem) = unsafe {
-        let mut m: DeviceMemoryHolder = mem::uninitialized();
-        let r = vkAllocateMemory(logi_device.value, &alloc_info, null(), &mut m.value);
+        let mut v = mem::MaybeUninit::<vk_sys::DeviceMemory>::uninit();
+        let r = vkAllocateMemory(logi_device.value, &alloc_info, null(), v.as_mut_ptr());
+        let m = DeviceMemoryHolder { value: v.assume_init()};
         (r, m)
     };
 
@@ -1020,8 +1031,9 @@ fn create_descriptor_set_layout_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Resu
     };
 
     let (result, set_layout) = unsafe {
-        let mut sl: DescriptorSetLayoutHolder = mem::uninitialized();
-        let r = vkCreateDescriptorSetLayout(logi_device.value, &vk_create_info, null(), &mut sl.value);
+        let mut v = mem::MaybeUninit::<vk_sys::DescriptorSetLayout>::uninit();
+        let r = vkCreateDescriptorSetLayout(logi_device.value, &vk_create_info, null(), v.as_mut_ptr());
+        let sl: DescriptorSetLayoutHolder = DescriptorSetLayoutHolder {value: v.assume_init()};
         (r, sl)
     };
 
@@ -1060,8 +1072,9 @@ fn create_descriptor_pool_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Ter
     };
 
     let (result, pool) = unsafe {
-        let mut p: DescriptorPoolHolder = mem::uninitialized();
-        let r = vkCreateDescriptorPool(logi_device.value, &vk_create_info, null(), &mut p.value);
+        let mut v = mem::MaybeUninit::<vk_sys::DescriptorPool>::uninit();
+        let r = vkCreateDescriptorPool(logi_device.value, &vk_create_info, null(), v.as_mut_ptr());
+        let p = DescriptorPoolHolder {value: v.assume_init()};
         (r, p)
     };
 
@@ -1202,8 +1215,9 @@ fn create_shader_module_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<
     };
 
     let (result, shader) = unsafe {
-        let mut s = ShaderModuleHolder { value : mem::uninitialized()} ;
-        let r = vkCreateShaderModule(logi_device.value, &create_info, null(), &mut s.value);
+        let mut v = mem::MaybeUninit::<vk_sys::ShaderModule>::uninit();
+        let r = vkCreateShaderModule(logi_device.value, &create_info, null(), v.as_mut_ptr());
+        let s = ShaderModuleHolder { value : v.assume_init()} ;
         (r, s)
     };
 
@@ -1244,8 +1258,9 @@ fn create_pipeline_layout_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Ter
     };
 
     let (result, pipeline) = unsafe {
-        let mut p = PipelineLayoutHolder {value: mem::uninitialized()};
-        let r = vkCreatePipelineLayout(logi_device.value, &create_info, null(), &mut p.value);
+        let mut v = mem::MaybeUninit::<vk_sys::PipelineLayout>::uninit();
+        let r = vkCreatePipelineLayout(logi_device.value, &create_info, null(), v.as_mut_ptr());
+        let p = PipelineLayoutHolder {value: v.assume_init()};
         (r, p)
     };
 
