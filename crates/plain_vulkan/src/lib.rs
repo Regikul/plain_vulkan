@@ -1,7 +1,6 @@
 extern crate vk_sys;
 #[macro_use]
 extern crate rustler;
-#[macro_use]
 extern crate lazy_static;
 #[macro_use]
 extern crate rustler_codegen;
@@ -11,6 +10,8 @@ use rustler::resource::ResourceArc;
 use std::ffi::{CString, CStr, NulError};
 use std::mem;
 use std::ptr::{null, null_mut};
+use rustler::codegen_runtime::c_void;
+//use vk_sys::PipelineCache;
 
 #[link(name = "vulkan")]
 extern {
@@ -161,8 +162,21 @@ extern {
     ) -> vk_sys::Result;
 
     fn vkDestroyPipelineLayout(device: vk_sys::Device
-                             ,pipeline_layout: vk_sys::PipelineLayout
-                             ,allocator: *const vk_sys::AllocationCallbacks
+                              ,pipeline_layout: vk_sys::PipelineLayout
+                              ,allocator: *const vk_sys::AllocationCallbacks
+    );
+
+    fn vkCreateComputePipelines(device: vk_sys::Device
+                               ,pipeline_cache: vk_sys::PipelineCache
+                               ,create_info_count: u32
+                               ,create_infos: *const vk_sys::ComputePipelineCreateInfo
+                               ,allocator: *const vk_sys::AllocationCallbacks
+                               ,pipelines: *mut vk_sys::Pipeline
+    ) -> vk_sys::Result;
+
+    fn vkDestroyPipeline(device: vk_sys::Device
+                        ,pipeline: vk_sys::Pipeline
+                        ,allocator: *const vk_sys::AllocationCallbacks
     );
 
 }
@@ -366,7 +380,7 @@ struct ErlVkWriteDescriptorSet {
 //    descriptor_count: u32,
     descriptor_type: vk_sys::DescriptorType,
     //,image_info :: [term()],                      %% don't want to implement
-     buffer_info: Vec<ErlVkDescriptorBufferInfo>
+    buffer_info: Vec<ErlVkDescriptorBufferInfo>
     // texel_biffer_view :: [term()]                %% don't want to implement
 }
 
@@ -405,6 +419,41 @@ struct ErlVkPipelineCreateInfo {
     push_constant_ranges: Vec<ErlVkPushConstantRange>
 }
 
+#[derive(NifRecord)]
+#[tag="vk_compute_pipeline_create_info"]
+struct ErlVkComputePipelineCreateInfo {
+    flags: u32,
+    stage: ErlVkPipelineShaderStageCreateInfo,
+    layout: ResourceArc<PipelineLayoutHolder>,
+    base_pipeline_handle: Option<ResourceArc<PipelineHolder>>,
+    base_pipeline_index: i32
+}
+
+#[derive(NifRecord)]
+#[tag="vk_specialization_map_entry"]
+struct ErlVkSpecializationMapEntry {
+    constant_id: u32,
+    offset: u32,
+    size: u32
+}
+
+#[derive(NifRecord)]
+#[tag="vk_specialization_info"]
+struct ErlVkSpecializationInfo {
+    map_entries: Vec<ErlVkSpecializationMapEntry>,
+    data: Vec<u8>
+}
+
+#[derive(NifRecord)]
+#[tag="vk_pipeline_shader_stage_create_info"]
+struct ErlVkPipelineShaderStageCreateInfo {
+    flags: u32,
+    stage: u32,
+    shader_module: ResourceArc<ShaderModuleHolder>,
+    name: Vec<u8>,
+    specialization_info: Option<ErlVkSpecializationInfo>
+}
+
 rustler_export_nifs!(
     "plain_vulkan",
     [("create_instance", 1, create_instance_nif)
@@ -438,6 +487,8 @@ rustler_export_nifs!(
     ,("destroy_shader_module", 2, destroy_shader_module_nif)
     ,("create_pipeline_layout_nif", 2, create_pipeline_layout_nif)
     ,("destroy_pipeline_layout", 2, destroy_pipeline_layout_nif)
+    ,("create_compute_pipelines_nif", 3, create_compute_pipelines_nif)
+    ,("destroy_pipeline", 2, destroy_pipeline_nif)
     ],
     Some(on_load)
 );
@@ -486,6 +537,14 @@ struct PipelineLayoutHolder {
     pub value: vk_sys::PipelineLayout
 }
 
+struct PipelineHolder {
+    pub value: vk_sys::Pipeline
+}
+
+struct PipelineCacheHolder {
+    pub value: vk_sys::PipelineCache
+}
+
 fn on_load(env: Env, _info: Term) -> bool {
     resource_struct_init!(InstanceHolder, env);
     resource_struct_init!(DeviceHolder, env);
@@ -498,6 +557,8 @@ fn on_load(env: Env, _info: Term) -> bool {
     resource_struct_init!(DescriptorSetHolder, env);
     resource_struct_init!(ShaderModuleHolder, env);
     resource_struct_init!(PipelineLayoutHolder, env);
+    resource_struct_init!(PipelineHolder, env);
+    resource_struct_init!(PipelineCacheHolder, env);
     true
 }
 
@@ -1273,6 +1334,100 @@ fn destroy_pipeline_layout_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Te
 
     unsafe {
         vkDestroyPipelineLayout(logi_device.value, pipeline.value, null());
+    }
+
+    Ok(atoms::ok().encode(env))
+}
+
+fn create_compute_pipelines_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
+    let logi_device: ResourceArc<DeviceHolder> = args[0].decode()?;
+    let erl_pipeline_cache: Option<ResourceArc<PipelineCacheHolder>> = args[1].decode()?;
+    let erl_create_infos: Vec<ErlVkComputePipelineCreateInfo> = args[2].decode()?;
+
+    let pipeline_cache = match erl_pipeline_cache {
+        Some(cache) => cache,
+        None => ResourceArc::new(PipelineCacheHolder{value : 0}),
+    };
+
+    let mut specs_map_entries:Vec<Option<Vec<vk_sys::SpecializationMapEntry>>> = Vec::new();
+    let mut specs:Vec<Option<vk_sys::SpecializationInfo>> = Vec::new();
+    let mut create_infos:Vec<vk_sys::ComputePipelineCreateInfo> = Vec::new();
+    let mut names:Vec<CString> = Vec::new();
+
+    for (_idx, erl_ci) in erl_create_infos.iter().enumerate() {
+        let erl_stage: &ErlVkPipelineShaderStageCreateInfo = &erl_ci.stage;
+        let erl_spec = &erl_stage.specialization_info;
+
+        let spec_info: *const vk_sys::SpecializationInfo = if let Some(spec) = erl_spec {
+            let sme_idx = specs_map_entries.len();
+            let s_idx = specs.len();
+            let vk_map_entries: Vec<vk_sys::SpecializationMapEntry> = spec.map_entries.iter().map(|entry: &ErlVkSpecializationMapEntry| vk_sys::SpecializationMapEntry{
+                size: entry.size as usize,
+                offset: entry.offset,
+                constantID: entry.constant_id,
+            }).collect();
+            specs_map_entries.push(Some(vk_map_entries));
+            let spec_info = vk_sys::SpecializationInfo {
+                mapEntryCount: specs_map_entries[sme_idx].as_ref().unwrap().len() as u32,
+                pMapEntries: specs_map_entries[sme_idx].as_ref().unwrap().as_ptr(),
+                dataSize: spec.data.len(),
+                pData: spec.data.as_ptr() as *const c_void,
+            };
+            specs.push(Some(spec_info));
+            specs[s_idx].as_ref().unwrap()
+        } else {
+            null()
+        };
+
+        let name_idx = names.len();
+        let name = unsafe {
+            CString::from_vec_unchecked(erl_stage.name.clone())
+        };
+        names.push(name);
+
+        let stage = vk_sys::PipelineShaderStageCreateInfo {
+            sType: vk_sys::STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+            pNext: null(),
+            flags: erl_stage.flags,
+            stage: erl_stage.stage,
+            module: erl_stage.shader_module.value,
+            pName: names[name_idx].as_ptr(),
+            pSpecializationInfo: spec_info,
+        };
+        let pipeline_handle = match &erl_ci.base_pipeline_handle {
+            Some(something) => something.value,
+            None => 0 as u64,
+        };
+        let pipe_ci = vk_sys::ComputePipelineCreateInfo {
+            sType: vk_sys::STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
+            pNext: null(),
+            flags: erl_ci.flags,
+            stage: stage,
+            layout: erl_ci.layout.value,
+            basePipelineHandle: pipeline_handle,
+            basePipelineIndex: erl_ci.base_pipeline_index,
+        };
+        create_infos.push(pipe_ci);
+    }
+
+    let (result, pipelines) : (u32, Vec<ResourceArc<PipelineHolder>>) = unsafe {
+        let mut p:Vec<vk_sys::Pipeline> = Vec::new();
+        p.reserve(create_infos.len());
+        p.set_len(create_infos.len());
+        let r = vkCreateComputePipelines(logi_device.value, pipeline_cache.value, create_infos.len() as u32, create_infos.as_ptr(), null(), p.as_mut_ptr());
+        let wrap_fun = |pipe: &vk_sys::Pipeline| ResourceArc::new(PipelineHolder{value: *pipe });
+        (r, p.iter().map(wrap_fun).collect())
+    };
+
+    match_return(env, result, pipelines)
+}
+
+fn destroy_pipeline_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
+    let logi_device: ResourceArc<DeviceHolder> = args[0].decode()?;
+    let pipeline: ResourceArc<PipelineHolder> = args[1].decode()?;
+
+    unsafe {
+        vkDestroyPipeline(logi_device.value, pipeline.value, null());
     }
 
     Ok(atoms::ok().encode(env))

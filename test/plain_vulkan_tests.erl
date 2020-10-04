@@ -84,7 +84,19 @@ flow_test() ->
                                                             },
   {ok, PipelineLayout} = plain_vulkan:create_pipeline_layout(Device, PipelineLayoutCreateInfo),
 
+  ShaderStageCI = #vk_pipeline_shader_stage_create_info{
+    stage_flags = [compute],
+    shader_module = ShaderModule,
+    name = "main"
+  },
+  ComputePipelinesCI = #vk_compute_pipeline_create_info{layout = PipelineLayout,
+                                                        stage = ShaderStageCI
+                                                       },
+  {ok, [Pipeline]} = plain_vulkan:create_compute_pipelines(Device, nil, [ComputePipelinesCI]),
 
+  %% --------------- Resource release start here
+
+  ok = plain_vulkan:destroy_pipeline(Device, Pipeline),
   ok = plain_vulkan:destroy_pipeline_layout(Device, PipelineLayout),
   ok = plain_vulkan:destroy_shader_module(Device, ShaderModule),
   ok = plain_vulkan:free_descriptor_sets(Device, Pool, [Set]),

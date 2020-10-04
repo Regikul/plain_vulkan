@@ -252,5 +252,35 @@
 }).
 -type vk_pipeline_layout_create_info() :: #vk_pipeline_layout_create_info{}.
 
+-record(vk_compute_pipeline_create_info, {
+  flags = [] :: [atom()],
+  stage :: vk_pipeline_shader_stage_create_info(),
+  layout :: plain_vulkan:vk_pipeline_layout(),
+  base_pipeline_handle  = nil :: plain_vulkan:vk_pipeline() | nil,
+  base_pipeline_index = 0 :: integer()
+}).
+-type vk_compute_pipeline_create_info() :: #vk_compute_pipeline_create_info{}.
+
+-record(vk_specialization_map_entry, {
+  constant_id :: non_neg_integer(),
+  offset :: non_neg_integer(),
+  size :: non_neg_integer()
+}).
+-type vk_specialization_map_entry() :: #vk_specialization_map_entry{}.
+
+-record(vk_specialization_info, {
+  map_entries = [] :: [vk_specialization_map_entry()],
+  data :: binary()
+}).
+-type vk_specialization_info() :: #vk_specialization_info{}.
+
+-record(vk_pipeline_shader_stage_create_info, {
+  create_flags = [] :: [atom()],
+  stage_flags = [] :: [atom()],
+  shader_module :: plain_vulkan:vk_shader_module(),
+  name :: string(),
+  specialization_info = nil :: vk_specialization_info() | nil
+}).
+-type vk_pipeline_shader_stage_create_info() :: #vk_pipeline_shader_stage_create_info{}.
 
 -endif.

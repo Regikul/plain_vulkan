@@ -25,7 +25,8 @@
   create_descriptor_pool/2, destroy_descriptor_pool/2,
   allocate_descriptor_sets/2, free_descriptor_sets/3, update_descriptor_sets/3,
   create_shader_module/2, destroy_shader_module/2,
-  create_pipeline_layout/2, destroy_pipeline_layout/2
+  create_pipeline_layout/2, destroy_pipeline_layout/2,
+  create_compute_pipelines/3, destroy_pipeline/2
 ]).
 
 -type vk_instance() :: reference().
@@ -41,6 +42,8 @@
 -type vk_physical_devices() :: [vk_physical_device()].
 -type vk_shader_module() :: reference().
 -type vk_pipeline_layout() :: reference().
+-type vk_pipeline_cache() :: reference().
+-type vk_pipeline() :: reference().
 -type vk_enumerate_dev_ret() :: {ok, vk_physical_devices()}
                                 | {incomplete, vk_physical_devices()}
                                 | out_of_device_memory
@@ -64,7 +67,9 @@
   vk_descriptor_pool/0,
   vk_descriptor_set/0,
   vk_descriptor_set_layout/0,
-  vk_shader_module/0
+  vk_shader_module/0,
+  vk_pipeline_cache/0,
+  vk_pipeline/0
 ]).
 
 -include("plain_vulkan.hrl").
@@ -359,6 +364,44 @@ create_pipeline_layout_nif(_Device, _CreateInfo) -> erlang:nif_error({error, not
 
 -spec destroy_pipeline_layout(vk_device(), vk_pipeline_layout()) -> ok.
 destroy_pipeline_layout(_Device, _PipelineLayout) -> erlang:nif_error({error, not_loaded}).
+
+-spec pipeline_create_flags() -> proplists:proplist().
+pipeline_create_flags() ->
+    [{disable_optimization, 16#1}
+     ,{allow_derivatives, 16#2}
+     ,{derivative, 16#4}
+     ,{view_index_from_device_index, 16#8}
+     ,{dispatch_base, 16#10}
+    ].
+
+-spec pipeline_shader_stage_create_flags() -> proplists:proplist().
+pipeline_shader_stage_create_flags() ->
+    [].
+
+-spec create_compute_pipelines(vk_device(), vk_pipeline_cache(), [vk_compute_pipeline_create_info()]) -> [vk_pipeline()].
+create_compute_pipelines(Device, PipelineCache, CreateInfos) ->
+  MapFun = fun (#vk_compute_pipeline_create_info{flags = PFlags,
+                                                 stage = #vk_pipeline_shader_stage_create_info{create_flags = SCFlags,
+                                                                                               stage_flags = SSFlags
+                                                                                              } = Shader
+                                                } = CI) ->
+             PBits = plain_vulkan_util:fold_flags(PFlags, pipeline_create_flags()),
+             SCBits = plain_vulkan_util:fold_flags(SCFlags, pipeline_shader_stage_create_flags()),
+             SSBits = plain_vulkan_util:fold_flags(SSFlags, shader_stage_flags()),
+             CI#vk_compute_pipeline_create_info{flags = PBits,
+                                                stage = Shader#vk_pipeline_shader_stage_create_info{create_flags = SCBits,
+                                                                                                    stage_flags = SSBits
+                                                                                                   }
+                                               }
+           end,
+  NewCreateInfos = lists:map(MapFun, CreateInfos),
+  create_compute_pipelines_nif(Device, PipelineCache, NewCreateInfos).
+
+-spec create_compute_pipelines_nif(vk_device(), vk_pipeline_cache(), [vk_compute_pipeline_create_info()]) -> [vk_pipeline()].
+create_compute_pipelines_nif(_Device, _PipelineCache, _CreateInfos) -> erlang:nif_error({error, not_loaded}).
+
+-spec destroy_pipeline(vk_device(), vk_pipeline()) -> ok.
+destroy_pipeline(_Device, _Pipeline) -> erlang:nif_error({error, not_loaded}).
 
 %%====================================================================
 %% Internal functions
