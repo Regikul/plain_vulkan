@@ -102,6 +102,10 @@ flow_test() ->
   {ok, [CommandBuffer]} = plain_vulkan:allocate_command_buffers(Device, CommandBufferAI),
   {ok, ok} = plain_vulkan:reset_command_buffer(CommandBuffer, []),
 
+  CommandBufferBI = #vk_command_buffer_begin_info{},
+  {ok, ok} = plain_vulkan:begin_command_buffer(CommandBuffer, CommandBufferBI),
+  {ok, ok} = plain_vulkan:end_command_buffer(CommandBuffer),
+
   %% --------------- Resource release start here
 
   ok = plain_vulkan:free_command_buffers(Device, CommandPool, [CommandBuffer]),

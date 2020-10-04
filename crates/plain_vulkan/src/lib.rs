@@ -11,7 +11,6 @@ use std::ffi::{CString, CStr, NulError};
 use std::mem;
 use std::ptr::{null, null_mut};
 use rustler::codegen_runtime::c_void;
-//use vk_sys::PipelineCache;
 
 #[link(name = "vulkan")]
 extern {
@@ -194,6 +193,12 @@ extern {
                            ,command_buffers: *const vk_sys::CommandBuffer
     );
 
+    fn vkBeginCommandBuffer(command_buffer: vk_sys::CommandBuffer
+                            ,begin_info: *const vk_sys::CommandBufferBeginInfo
+    ) -> vk_sys::Result;
+
+    fn vkEndCommandBuffer(command_buffer: vk_sys::CommandBuffer
+    ) -> vk_sys::Result;
 }
 
 mod atoms {
@@ -477,6 +482,24 @@ struct ErlVkCommandBufferAllocateInfo {
     command_buffer_count: u32
 }
 
+#[derive(NifRecord)]
+#[tag="vk_command_buffer_inheritance_info"]
+struct ErlVkCommandBufferInheritanceInfo {
+    render_pass: ResourceArc<RenderPassHolder>,
+    subpass: u32,
+    framebuffer: ResourceArc<FramebufferHolder>,
+    occlusion_query_enable: bool,
+    query_flags: u32,
+    pipeline_statistics_flags: u32
+}
+
+#[derive(NifRecord)]
+#[tag="vk_command_buffer_begin_info"]
+struct ErlVkCommandBufferBeginInfo {
+    flags: u32,
+    inheritance_info: Option<ErlVkCommandBufferInheritanceInfo>
+}
+
 rustler_export_nifs!(
     "plain_vulkan",
     [("create_instance", 1, create_instance_nif)
@@ -515,6 +538,8 @@ rustler_export_nifs!(
     ,("allocate_command_buffers_nif", 2, allocate_command_buffers_nif)
     ,("reset_command_buffer_nif", 2, reset_command_buffer_nif)
     ,("free_command_buffers", 3, free_command_buffers_nif)
+    ,("begin_command_buffer_nif", 2, begin_command_buffer_nif)
+    ,("end_command_buffer", 1, end_command_buffer_nif)
     ],
     Some(on_load)
 );
@@ -575,6 +600,14 @@ struct CommandBufferHolder {
     pub value: vk_sys::CommandBuffer
 }
 
+struct RenderPassHolder {
+    pub value: vk_sys::RenderPass
+}
+
+struct FramebufferHolder {
+    pub value: vk_sys::Framebuffer
+}
+
 fn on_load(env: Env, _info: Term) -> bool {
     resource_struct_init!(InstanceHolder, env);
     resource_struct_init!(DeviceHolder, env);
@@ -590,6 +623,8 @@ fn on_load(env: Env, _info: Term) -> bool {
     resource_struct_init!(PipelineHolder, env);
     resource_struct_init!(PipelineCacheHolder, env);
     resource_struct_init!(CommandBufferHolder, env);
+    resource_struct_init!(RenderPassHolder, env);
+    resource_struct_init!(FramebufferHolder, env);
     true
 }
 
@@ -1512,4 +1547,48 @@ fn free_command_buffers_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<
     }
 
     Ok(atoms::ok().encode(env))
+}
+
+fn begin_command_buffer_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
+    let command_buffer: ResourceArc<CommandBufferHolder> = args[0].decode()?;
+    let erl_begin_info: ErlVkCommandBufferBeginInfo = args[1].decode()?;
+
+    let inheritance_info = erl_begin_info.inheritance_info.map(|i|vk_sys::CommandBufferInheritanceInfo{
+        sType: vk_sys::STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_INFO,
+        pNext: null(),
+        renderPass: i.render_pass.value,
+        subpass: i.subpass,
+        framebuffer: i.framebuffer.value,
+        occlusionQueryEnable: match i.occlusion_query_enable {
+            true => 1,
+            false => 0
+        },
+        queryFlags: i.query_flags,
+        pipelineStatistics: i.pipeline_statistics_flags
+    });
+
+    let begin_info = vk_sys::CommandBufferBeginInfo {
+        sType: vk_sys::STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        pNext: null(),
+        flags: erl_begin_info.flags,
+        pInheritanceInfo: if let Some(info) = inheritance_info {
+            &info
+        } else {
+            null()
+        }
+    };
+
+    let result = unsafe {
+        vkBeginCommandBuffer(command_buffer.value, &begin_info)
+    };
+
+    match_return(env, result, atoms::ok())
+}
+
+fn end_command_buffer_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
+    let command_buffer: ResourceArc<CommandBufferHolder> = args[0].decode()?;
+    let result = unsafe {
+        vkEndCommandBuffer(command_buffer.value)
+    };
+    match_return(env, result, atoms::ok())
 }

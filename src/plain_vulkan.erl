@@ -27,7 +27,8 @@
   create_shader_module/2, destroy_shader_module/2,
   create_pipeline_layout/2, destroy_pipeline_layout/2,
   create_compute_pipelines/3, destroy_pipeline/2,
-  allocate_command_buffers/2, reset_command_buffer/2, free_command_buffers/3
+  allocate_command_buffers/2, reset_command_buffer/2, free_command_buffers/3,
+  begin_command_buffer/2, end_command_buffer/1
 ]).
 
 -type vk_instance() :: reference().
@@ -46,6 +47,8 @@
 -type vk_pipeline_cache() :: reference().
 -type vk_pipeline() :: reference().
 -type vk_command_buffer() :: reference().
+-type vk_render_pass() :: reference().
+-type vk_framebuffer() :: reference().
 -type vk_enumerate_dev_ret() :: {ok, vk_physical_devices()}
                                 | {incomplete, vk_physical_devices()}
                                 | out_of_device_memory
@@ -431,6 +434,57 @@ reset_command_buffer_nif(_CommandBuffer, _Bits) -> erlang:nif_error({error, not_
 
 -spec free_command_buffers(vk_device(), vk_command_pool(), [vk_command_buffer()]) -> ok.
 free_command_buffers(_Device, _CommandPool, _CommandBuffers) -> erlang:nif_error({error, not_loaded}).
+
+-spec command_buffer_usage_flags() -> proplists:proplist().
+command_buffer_usage_flags() ->
+    [{one_time_submit, 16#1}
+     ,{render_pass_continue, 16#2}
+     ,{simultaneous_use, 16#4}
+    ].
+
+-spec query_pipeline_statistic_flags() -> proplists:proplist().
+query_pipeline_statistic_flags() ->
+    [{innput_assembly_vertices, 16#1}
+     ,{input_assembly_primitives, 16#2}
+     ,{vertex_shader_invocations, 16#4}
+     ,{geometry_shader_invocations, 16#8}
+     ,{geometry_shader_primitives, 16#10}
+     ,{clipping_invocations, 16#20}
+     ,{clipping_primitives, 16#40}
+     ,{fragment_shader_invocations, 16#80}
+     ,{tessaltion_control_shader_patches, 16#100}
+     ,{tesselation_evaluation_shader_invocations, 16#200}
+     ,{compute_shader_invocations, 16#400}
+    ].
+
+-spec query_control_flags() -> proplists:proplist().
+query_control_flags() ->
+    [{precise, 16#1}].
+
+-spec begin_command_buffer(vk_command_buffer(), vk_command_buffer_begin_info()) -> either(ok, atom()).
+begin_command_buffer(CommandBuffer, #vk_command_buffer_begin_info{flags = Flags,
+                                                                  inheritance_info = Inheritance} = BeginInfo) ->
+    NewInheritance = case Inheritance of
+                         nil -> Inheritance;
+                         #vk_command_buffer_inheritance_info{} ->
+                             QFlags = Inheritance#vk_command_buffer_inheritance_info.query_flags,
+                             SFlags = Inheritance#vk_command_buffer_inheritance_info.pipeline_statistics_flags,
+                             QBits = plain_vulkan_util:fold_flags(QFlags, query_control_flags()),
+                             SBits = plain_vulkan_util:fold_flags(SFlags, query_pipeline_statistic_flags()),
+                             Inheritance#vk_command_buffer_inheritance_info{query_flags = QBits
+                                                                            ,pipeline_statistics_flags = SBits
+                                                                           }
+                     end,
+    Bits = plain_vulkan_util:fold_flags(Flags, command_buffer_usage_flags()),
+    begin_command_buffer_nif(CommandBuffer, BeginInfo#vk_command_buffer_begin_info{flags = Bits,
+                                                                                   inheritance_info = NewInheritance
+                                                                                  }).
+
+-spec begin_command_buffer_nif(vk_command_buffer(), vk_command_buffer_begin_info()) -> either(ok, atom()).
+begin_command_buffer_nif(_CommandBuffer, _BeginInfo) -> erlang:nif_error({error, not_loaded}).
+
+-spec end_command_buffer(vk_command_buffer()) -> either(ok, atom()).
+end_command_buffer(_CommandBuffer) -> erlang:nif_error({error, not_loaded}).
 
 %%====================================================================
 %% Internal functions

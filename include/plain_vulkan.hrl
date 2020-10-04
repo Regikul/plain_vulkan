@@ -291,4 +291,20 @@
 }).
 -type vk_command_buffer_allocate_info() :: #vk_command_buffer_allocate_info{}.
 
+-record(vk_command_buffer_inheritance_info, {
+  render_pass :: plain_vulkan:vk_render_pass(),
+  subpass :: non_neg_integer(),
+  framebuffer :: plain_vulkan:vk_framebuffer(),
+  occlusion_query_enable = false :: boolean(),
+  query_flags = [] :: atom(),
+  pipeline_statistics_flags = [] :: atom()
+}).
+-type vk_command_buffer_inheritance_info() :: #vk_command_buffer_inheritance_info{}.
+
+-record(vk_command_buffer_begin_info, {
+  flags = [] :: [atom()],
+  inheritance_info = nil :: vk_command_buffer_inheritance_info() | nil
+}).
+-type vk_command_buffer_begin_info() :: #vk_command_buffer_begin_info{}.
+
 -endif.
