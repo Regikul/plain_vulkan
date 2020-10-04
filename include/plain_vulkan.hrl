@@ -283,4 +283,12 @@
 }).
 -type vk_pipeline_shader_stage_create_info() :: #vk_pipeline_shader_stage_create_info{}.
 
+-type vk_command_buffer_level() :: primary | secondary.
+-record(vk_command_buffer_allocate_info, {
+  command_pool :: plain_vulkan:vk_command_pool(),
+  level :: vk_command_buffer_level(),
+  command_buffer_count :: pos_integer()
+}).
+-type vk_command_buffer_allocate_info() :: #vk_command_buffer_allocate_info{}.
+
 -endif.

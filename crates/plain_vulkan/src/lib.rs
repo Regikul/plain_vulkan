@@ -179,6 +179,21 @@ extern {
                         ,allocator: *const vk_sys::AllocationCallbacks
     );
 
+    fn vkAllocateCommandBuffers(device: vk_sys::Device
+                               ,allocate_info: *const vk_sys::CommandBufferAllocateInfo
+                               ,command_buffers: *mut vk_sys::CommandBuffer
+    ) -> vk_sys::Result;
+
+    fn vkResetCommandBuffer(command_buffer: vk_sys::CommandBuffer
+                           ,flags: vk_sys::CommandBufferResetFlags
+    ) -> vk_sys::Result;
+
+    fn vkFreeCommandBuffers(device: vk_sys::Device
+                           ,command_pool: vk_sys::CommandPool
+                           ,command_buffer_count: u32
+                           ,command_buffers: *const vk_sys::CommandBuffer
+    );
+
 }
 
 mod atoms {
@@ -454,6 +469,14 @@ struct ErlVkPipelineShaderStageCreateInfo {
     specialization_info: Option<ErlVkSpecializationInfo>
 }
 
+#[derive(NifRecord)]
+#[tag="vk_command_buffer_allocate_info"]
+struct ErlVkCommandBufferAllocateInfo {
+    command_pool: ResourceArc<CommandPoolHolder>,
+    level: u32,
+    command_buffer_count: u32
+}
+
 rustler_export_nifs!(
     "plain_vulkan",
     [("create_instance", 1, create_instance_nif)
@@ -489,6 +512,9 @@ rustler_export_nifs!(
     ,("destroy_pipeline_layout", 2, destroy_pipeline_layout_nif)
     ,("create_compute_pipelines_nif", 3, create_compute_pipelines_nif)
     ,("destroy_pipeline", 2, destroy_pipeline_nif)
+    ,("allocate_command_buffers_nif", 2, allocate_command_buffers_nif)
+    ,("reset_command_buffer_nif", 2, reset_command_buffer_nif)
+    ,("free_command_buffers", 3, free_command_buffers_nif)
     ],
     Some(on_load)
 );
@@ -545,6 +571,10 @@ struct PipelineCacheHolder {
     pub value: vk_sys::PipelineCache
 }
 
+struct CommandBufferHolder {
+    pub value: vk_sys::CommandBuffer
+}
+
 fn on_load(env: Env, _info: Term) -> bool {
     resource_struct_init!(InstanceHolder, env);
     resource_struct_init!(DeviceHolder, env);
@@ -559,6 +589,7 @@ fn on_load(env: Env, _info: Term) -> bool {
     resource_struct_init!(PipelineLayoutHolder, env);
     resource_struct_init!(PipelineHolder, env);
     resource_struct_init!(PipelineCacheHolder, env);
+    resource_struct_init!(CommandBufferHolder, env);
     true
 }
 
@@ -1428,6 +1459,56 @@ fn destroy_pipeline_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>,
 
     unsafe {
         vkDestroyPipeline(logi_device.value, pipeline.value, null());
+    }
+
+    Ok(atoms::ok().encode(env))
+}
+
+fn allocate_command_buffers_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
+    let logi_device: ResourceArc<DeviceHolder> = args[0].decode()?;
+    let erl_alloc_info: ErlVkCommandBufferAllocateInfo = args[1].decode()?;
+
+    let alloc_info = vk_sys::CommandBufferAllocateInfo {
+        sType: vk_sys::STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+        pNext: null(),
+        commandBufferCount: erl_alloc_info.command_buffer_count,
+        level: erl_alloc_info.level,
+        commandPool: erl_alloc_info.command_pool.value
+    };
+
+    let len = alloc_info.commandBufferCount as usize;
+    let mut buffers_mem: Vec<vk_sys::CommandBuffer> = Vec::with_capacity(len);
+
+    let (result, buffers): (u32, Vec<ResourceArc<CommandBufferHolder>>) = unsafe {
+        let r = vkAllocateCommandBuffers(logi_device.value, &alloc_info, buffers_mem.as_mut_ptr());
+        buffers_mem.set_len(len);
+        let wrap_fun = |pipe: &vk_sys::CommandBuffer| ResourceArc::new(CommandBufferHolder{value: *pipe });
+        (r, buffers_mem.iter().map(wrap_fun).collect())
+    };
+
+    match_return(env, result, buffers)
+}
+
+fn reset_command_buffer_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
+    let command_buffer: ResourceArc<CommandBufferHolder> = args[0].decode()?;
+    let flags: u32 = args[1].decode()?;
+
+    let result = unsafe {
+        vkResetCommandBuffer(command_buffer.value, flags)
+    };
+
+    match_return(env, result, atoms::ok())
+}
+
+fn free_command_buffers_nif<'a>(env: Env<'a>, args: &[Term<'a>]) -> Result<Term<'a>, Error> {
+    let logi_device: ResourceArc<DeviceHolder> = args[0].decode()?;
+    let command_pool: ResourceArc<CommandPoolHolder> = args[1].decode()?;
+    let erl_command_buffers: Vec<ResourceArc<CommandBufferHolder>> = args[2].decode()?;
+
+    let vk_command_buffers: Vec<vk_sys::CommandBuffer> = erl_command_buffers.iter().map(|x|x.value).collect();
+
+    unsafe {
+        vkFreeCommandBuffers(logi_device.value, command_pool.value, vk_command_buffers.len() as u32, vk_command_buffers.as_ptr());
     }
 
     Ok(atoms::ok().encode(env))

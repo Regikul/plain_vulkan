@@ -26,7 +26,8 @@
   allocate_descriptor_sets/2, free_descriptor_sets/3, update_descriptor_sets/3,
   create_shader_module/2, destroy_shader_module/2,
   create_pipeline_layout/2, destroy_pipeline_layout/2,
-  create_compute_pipelines/3, destroy_pipeline/2
+  create_compute_pipelines/3, destroy_pipeline/2,
+  allocate_command_buffers/2, reset_command_buffer/2, free_command_buffers/3
 ]).
 
 -type vk_instance() :: reference().
@@ -44,6 +45,7 @@
 -type vk_pipeline_layout() :: reference().
 -type vk_pipeline_cache() :: reference().
 -type vk_pipeline() :: reference().
+-type vk_command_buffer() :: reference().
 -type vk_enumerate_dev_ret() :: {ok, vk_physical_devices()}
                                 | {incomplete, vk_physical_devices()}
                                 | out_of_device_memory
@@ -69,7 +71,8 @@
   vk_descriptor_set_layout/0,
   vk_shader_module/0,
   vk_pipeline_cache/0,
-  vk_pipeline/0
+  vk_pipeline/0,
+  vk_command_buffer/0
 ]).
 
 -include("plain_vulkan.hrl").
@@ -397,11 +400,37 @@ create_compute_pipelines(Device, PipelineCache, CreateInfos) ->
   NewCreateInfos = lists:map(MapFun, CreateInfos),
   create_compute_pipelines_nif(Device, PipelineCache, NewCreateInfos).
 
--spec create_compute_pipelines_nif(vk_device(), vk_pipeline_cache(), [vk_compute_pipeline_create_info()]) -> [vk_pipeline()].
+-spec create_compute_pipelines_nif(vk_device(), vk_pipeline_cache(), [vk_compute_pipeline_create_info()]) -> either([vk_pipeline()], atom()).
 create_compute_pipelines_nif(_Device, _PipelineCache, _CreateInfos) -> erlang:nif_error({error, not_loaded}).
 
 -spec destroy_pipeline(vk_device(), vk_pipeline()) -> ok.
 destroy_pipeline(_Device, _Pipeline) -> erlang:nif_error({error, not_loaded}).
+
+-spec allocate_command_buffers(vk_device(), vk_command_buffer_allocate_info()) -> either([vk_command_buffer()], atom()).
+allocate_command_buffers(Device, #vk_command_buffer_allocate_info{level = Level} = AllocateInfo) ->
+    IntLevel = case Level of
+                   primary -> 0;
+                   secondary -> 1
+               end,
+    allocate_command_buffers_nif(Device, AllocateInfo#vk_command_buffer_allocate_info{level = IntLevel}).
+
+-spec allocate_command_buffers_nif(vk_device(), vk_command_buffer_allocate_info()) -> either([vk_command_buffer()], atom()).
+allocate_command_buffers_nif(_Device, _AllocateInfo) -> erlang:nif_error({error, not_loaded}).
+
+-spec command_buffer_reset_flags() -> proplists:proplist().
+command_buffer_reset_flags() ->
+    [{release_resources, 16#1}].
+
+-spec reset_command_buffer(vk_command_buffer(), [atom()]) -> either(ok, atom()).
+reset_command_buffer(CommandBuffer, Flags) ->
+    Bits = plain_vulkan_util:fold_flags(Flags, command_buffer_reset_flags()),
+    reset_command_buffer_nif(CommandBuffer, Bits).
+
+-spec reset_command_buffer_nif(vk_command_buffer(), [atom()]) -> either(ok, atom()).
+reset_command_buffer_nif(_CommandBuffer, _Bits) -> erlang:nif_error({error, not_loaded}).
+
+-spec free_command_buffers(vk_device(), vk_command_pool(), [vk_command_buffer()]) -> ok.
+free_command_buffers(_Device, _CommandPool, _CommandBuffers) -> erlang:nif_error({error, not_loaded}).
 
 %%====================================================================
 %% Internal functions
